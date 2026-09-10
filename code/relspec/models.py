@@ -10,6 +10,7 @@ Deep (N > 1) parameterises the same `E` as `W_1 W_2 ... W_N`; the end-to-end
 solution is unchanged but the learning dynamics are not, which is what the
 depth manipulation tests.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -46,32 +47,65 @@ class DeepModel:
         self.depth = depth
         h = d if width is None else width
         dims = [P] + [h] * (depth - 1) + [d]
-        self.W = [rng.standard_normal((dims[k], dims[k + 1])) * init_scale
-                  for k in range(depth)]
+        self.W = [
+            rng.standard_normal((dims[k], dims[k + 1])) * init_scale
+            for k in range(depth)
+        ]
 
     def embedding(self):
         return embed(self.W)
 
     def sgd_epoch(self, sparse, C, lr, rng):
         """Per-fact SGD that exploits row sparsity: a constraint row touches at
-        most three tokens, so only those rows of W_0 participate and no
-        P-sized matmul is ever formed.  All layer gradients are computed from
-        the same pre-update weights, then applied together."""
+        most three tokens, so only those rows of W_0 participate and no P-sized
+        matmul is ever formed.  All layer gradients are read off the SAME
+        pre-update weights, then applied together.
+
+        Every per-fact update changes W_1..W_{N-1}, so the suffix products
+        cannot be hoisted out of the loop.  What can be avoided is building the
+        trailing identity and then multiplying the last layer's gradient by it,
+        which is a full d x d matmul and an allocation per fact for no effect.
+        `suffix[N-1]` is therefore left implicit, as `prefix[0]` already is in
+        `prefixes`.  Depth 2 is written out separately because it is the common
+        case and needs no suffix product at all.  Results are bit-identical to
+        the straightforward form.
+        """
+        W = self.W
         N = self.depth
+        if N == 2:
+            W0, W1 = W
+            for i in rng.permutation(len(sparse)):
+                nz, av = sparse[i]
+                R = W0[nz]
+                resid = av @ (R @ W1) - C[i]
+                G = np.outer(av, resid)
+                g0 = G @ W1.T
+                g1 = R.T @ G
+                W0[nz] -= lr * g0
+                W1 -= lr * g1
+            return
         for i in rng.permutation(len(sparse)):
             nz, av = sparse[i]
-            suf = suffixes(self.W)
-            resid = av @ (self.W[0][nz] @ suf[0]) - C[i]
-            G = np.outer(av, resid)                     # nonzero rows of dL/dE
-            pre = [None] * N                            # (W_0..W_{k-1})[nz]
-            if N > 1:
-                pre[1] = self.W[0][nz]
-                for k in range(2, N):
-                    pre[k] = pre[k - 1] @ self.W[k - 1]
-            grads = [G @ suf[0].T] + [pre[k].T @ G @ suf[k].T for k in range(1, N)]
-            self.W[0][nz] -= lr * grads[0]
+            suf = [None] * N              # suf[N-1] stays None: the identity
+            s = None
+            for k in range(N - 2, -1, -1):
+                s = W[k + 1] if s is None else W[k + 1] @ s
+                suf[k] = s
+            R = W[0][nz]
+            resid = av @ (R @ suf[0]) - C[i]
+            G = np.outer(av, resid)
+            grads = [G @ suf[0].T]
+            pre = R
             for k in range(1, N):
-                self.W[k] -= lr * grads[k]
+                gk = pre.T @ G
+                if suf[k] is not None:
+                    gk = gk @ suf[k].T
+                grads.append(gk)
+                if k < N - 1:
+                    pre = pre @ W[k]
+            W[0][nz] -= lr * grads[0]
+            for k in range(1, N):
+                W[k] -= lr * grads[k]
 
     def fullbatch_step(self, A, C, lr):
         G = A.T @ (A @ self.embedding() - C)
@@ -86,6 +120,7 @@ class DeepModel:
 # --------------------------------------------------------------------------- #
 #  Layer-product helpers (shared with the deep mean-dynamics integrator)       #
 # --------------------------------------------------------------------------- #
+
 
 def embed(Ws):
     E = Ws[0]

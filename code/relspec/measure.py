@@ -33,6 +33,7 @@ alone, so the caller builds a plan and passes it in.  For a staged run the plan
 must be built from the POST-intervention world, so the evaluation set does not
 move when a fact is inserted mid-training.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -42,15 +43,14 @@ import numpy as np
 from .config import DEFAULT, Settings
 from .worlds import World
 
-
 # --------------------------------------------------------------------------- #
 #  Plans: which items an experiment scores                                     #
 # --------------------------------------------------------------------------- #
 
+
 def _nearest(Ent, pts):
     """Row index in `Ent` of the nearest row to each row of `pts`."""
-    d2 = ((pts ** 2).sum(1)[:, None] - 2.0 * pts @ Ent.T
-          + (Ent ** 2).sum(1)[None, :])
+    d2 = (pts**2).sum(1)[:, None] - 2.0 * pts @ Ent.T + (Ent**2).sum(1)[None, :]
     return d2.argmin(1)
 
 
@@ -68,7 +68,10 @@ def law_plan(world: World, held):
         plan[law.name] = dict(
             a=np.array([ti[a] for a, _ in pairs]),
             b=np.array([pos[b] for _, b in pairs]),
-            x=ti[law.x_rel], y=ti[law.y_rel], z=ti[law.z_rel])
+            x=ti[law.x_rel],
+            y=ti[law.y_rel],
+            z=ti[law.z_rel],
+        )
     return plan
 
 
@@ -79,7 +82,9 @@ def cross_plan(world: World, pairs, name="cross", step="x"):
     pos = {e: k for k, e in enumerate(ents)}
     gt = world.meta["gt_ent"]
     return dict(
-        kind="cross", name=name, names=[name],
+        kind="cross",
+        name=name,
+        names=[name],
         ent=np.array([ti[e] for e in ents]),
         a=np.array([ti[a] for a, _, _, _ in pairs]),
         b=np.array([ti[b] for _, b, _, _ in pairs]),
@@ -87,8 +92,10 @@ def cross_plan(world: World, pairs, name="cross", step="x"):
         nx=np.array([nx for _, _, nx, _ in pairs], float),
         ny=np.array([ny for _, _, _, ny in pairs], float),
         gt=np.array([gt[b] - gt[a] for a, b, _, _ in pairs]),
-        x=ti["x"], y=ti["y"],
-        scale=float(np.linalg.norm(world.meta["gt_rel"][step])))
+        x=ti["x"],
+        y=ti["y"],
+        scale=float(np.linalg.norm(world.meta["gt_rel"][step])),
+    )
 
 
 def apply_plan(plan, E):
@@ -103,15 +110,19 @@ def apply_plan(plan, E):
             z, xy = E[p["z"]], E[p["x"]] + E[p["y"]]
             hit = _nearest(Ent, E[p["a"]] + z[None, :]) == p["b"]
             ret[n], hits[n], errs[n] = 100.0 * hit.mean(), hit, None
-            geo[n] = float(np.linalg.norm(z - xy)
-                           / (np.linalg.norm(xy) + 1e-12))
+            geo[n] = float(np.linalg.norm(z - xy) / (np.linalg.norm(xy) + 1e-12))
     else:
         n = plan["name"]
-        pts = (E[plan["a"]] + plan["nx"][:, None] * E[plan["x"]][None, :]
-               + plan["ny"][:, None] * E[plan["y"]][None, :])
+        pts = (
+            E[plan["a"]]
+            + plan["nx"][:, None] * E[plan["x"]][None, :]
+            + plan["ny"][:, None] * E[plan["y"]][None, :]
+        )
         hit = _nearest(Ent, pts) == plan["bpos"]
-        err = np.linalg.norm((E[plan["b"]] - E[plan["a"]]) - plan["gt"],
-                             axis=1) / plan["scale"]
+        err = (
+            np.linalg.norm((E[plan["b"]] - E[plan["a"]]) - plan["gt"], axis=1)
+            / plan["scale"]
+        )
         ret[n], hits[n], errs[n] = 100.0 * hit.mean(), hit, err
         geo[n] = float(np.exp(np.log(np.maximum(err, 1e-16)).mean()))
     return ret, geo, hits, errs
@@ -120,6 +131,7 @@ def apply_plan(plan, E):
 # --------------------------------------------------------------------------- #
 #  Emergence                                                                   #
 # --------------------------------------------------------------------------- #
+
 
 def detect_emergence(retrieval, geometric, hold, tau, level=100.0):
     """Index of the first recorded evaluation at which retrieval reaches
@@ -131,10 +143,11 @@ def detect_emergence(retrieval, geometric, hold, tau, level=100.0):
     to a global scale the geometry is not, so retrieval alone reports false
     early emergence.  This was observed in every world tested.
     """
-    s = (np.asarray(retrieval, float) >= level - 1e-9) & \
-        (np.asarray(geometric, float) < tau)
+    s = (np.asarray(retrieval, float) >= level - 1e-9) & (
+        np.asarray(geometric, float) < tau
+    )
     for t in range(len(s)):
-        if s[t] and np.all(s[t:min(len(s), t + hold)]):
+        if s[t] and np.all(s[t : min(len(s), t + hold)]):
             return t
     return np.nan
 
@@ -157,23 +170,26 @@ def threshold_time(epochs, series, thresh):
 #  Trajectory                                                                  #
 # --------------------------------------------------------------------------- #
 
+
 @dataclass
 class Trajectory:
     """What a run produces, empirical or predicted."""
+
     epochs: np.ndarray
-    retrieval: dict = field(default_factory=dict)   # name -> (T,) percent
-    geometric: dict = field(default_factory=dict)   # name -> (T,) error
-    hits: dict = field(default_factory=dict)        # name -> (T, n) bool
-    errs: dict = field(default_factory=dict)        # name -> (T, n) or None
+    retrieval: dict = field(default_factory=dict)  # name -> (T,) percent
+    geometric: dict = field(default_factory=dict)  # name -> (T,) error
+    hits: dict = field(default_factory=dict)  # name -> (T, n) bool
+    errs: dict = field(default_factory=dict)  # name -> (T, n) or None
     loss: np.ndarray = None
-    probes: dict = field(default_factory=dict)      # name -> (T, ...) array
+    probes: dict = field(default_factory=dict)  # name -> (T, ...) array
 
     def emergence(self, settings: Settings = DEFAULT, level=100.0):
         """`{name: t* in epochs}`, NaN where it never emerged."""
         out = {}
         for n in self.retrieval:
-            i = detect_emergence(self.retrieval[n], self.geometric[n],
-                                 settings.hold, settings.tau, level)
+            i = detect_emergence(
+                self.retrieval[n], self.geometric[n], settings.hold, settings.tau, level
+            )
             out[n] = float(self.epochs[int(i)]) if np.isfinite(i) else np.nan
         return out
 
@@ -181,8 +197,9 @@ class Trajectory:
         return self.emergence(settings, level)[name]
 
 
-def trajectory_from_embeddings(world: World, epochs, embeddings, system=None,
-                               probes=None, plan=None):
+def trajectory_from_embeddings(
+    world: World, epochs, embeddings, system=None, probes=None, plan=None
+):
     """Build a `Trajectory` by applying the measures to a sequence of E(t).
 
     This is the single point at which embeddings become measurements, shared by
@@ -214,7 +231,9 @@ def trajectory_from_embeddings(world: World, epochs, embeddings, system=None,
         retrieval={n: np.asarray(v, float) for n, v in ret.items()},
         geometric={n: np.asarray(v, float) for n, v in geo.items()},
         hits={n: np.asarray(v, bool) for n, v in hit.items()},
-        errs={n: (None if err[n][0] is None else np.asarray(err[n], float))
-              for n in names},
+        errs={
+            n: (None if err[n][0] is None else np.asarray(err[n], float)) for n in names
+        },
         loss=None if losses is None else np.asarray(losses, float),
-        probes={k: np.asarray(v, float) for k, v in probe_rec.items()})
+        probes={k: np.asarray(v, float) for k, v in probe_rec.items()},
+    )

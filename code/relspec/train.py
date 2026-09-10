@@ -15,6 +15,7 @@ measured and only probes and loss are recorded.
 measures.  Passing the identity records the whole embedding, which is how a
 trajectory is re-scored afterwards without retraining.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -24,9 +25,18 @@ from .measure import Trajectory, apply_plan
 from .system import System
 
 
-def train(model, system: System, lr, epochs, settings: Settings = DEFAULT,
-          order_seed=0, mode="sgd", eval_every=None, probes=None,
-          plan=None) -> Trajectory:
+def train(
+    model,
+    system: System,
+    lr,
+    epochs,
+    settings: Settings = DEFAULT,
+    order_seed=0,
+    mode="sgd",
+    eval_every=None,
+    probes=None,
+    plan=None,
+) -> Trajectory:
     """Train `model` on `system`, recording a `Trajectory`.
 
     probes : {name: v}  with `v` a (P,) vector; records `v^T E(t)` per evaluation.
@@ -72,10 +82,12 @@ def train(model, system: System, lr, epochs, settings: Settings = DEFAULT,
         retrieval={n: np.asarray(v, float) for n, v in ret.items()},
         geometric={n: np.asarray(v, float) for n, v in geo.items()},
         hits={n: np.asarray(v, bool) for n, v in hit.items()},
-        errs={n: (None if err[n][0] is None else np.asarray(err[n], float))
-              for n in names},
+        errs={
+            n: (None if err[n][0] is None else np.asarray(err[n], float)) for n in names
+        },
         loss=np.asarray(losses, float),
-        probes={k: np.asarray(v) for k, v in probe_rec.items()})
+        probes={k: np.asarray(v) for k, v in probe_rec.items()},
+    )
 
 
 def train_silently(model, system: System, lr, epochs, order_seed=0, mode="sgd"):
@@ -86,6 +98,13 @@ def train_silently(model, system: System, lr, epochs, order_seed=0, mode="sgd"):
     instead of thousands), so there is only one training loop in the codebase
     and the RNG stream is identical either way.  Returns the model.
     """
-    train(model, system, lr, epochs, order_seed=order_seed, mode=mode,
-          eval_every=max(epochs, 1))
+    train(
+        model,
+        system,
+        lr,
+        epochs,
+        order_seed=order_seed,
+        mode=mode,
+        eval_every=max(epochs, 1),
+    )
     return model

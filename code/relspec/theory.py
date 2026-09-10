@@ -20,6 +20,7 @@ RK4 with per-depth substep counts that were checked for step-size convergence.
 Both return a `Trajectory`, so `traj.emergence(settings)` yields `t*_hat` under
 exactly the criterion applied to SGD.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -29,14 +30,21 @@ from .measure import Trajectory, trajectory_from_embeddings
 from .models import embed, prefix_T_dot, products
 from .system import System
 
-
 # --------------------------------------------------------------------------- #
 #  Shallow: closed form                                                        #
 # --------------------------------------------------------------------------- #
 
-def shallow_trajectory(system: System, lr, epochs, E0,
-                       settings: Settings = DEFAULT, eval_every=None,
-                       probes=None, plan=None) -> Trajectory:
+
+def shallow_trajectory(
+    system: System,
+    lr,
+    epochs,
+    E0,
+    settings: Settings = DEFAULT,
+    eval_every=None,
+    probes=None,
+    plan=None,
+) -> Trajectory:
     every = settings.eval_every if eval_every is None else eval_every
     decay_base = 1.0 - lr * system.evals_M
     coef0 = system.Q.T @ (E0 - system.Estar)
@@ -44,29 +52,41 @@ def shallow_trajectory(system: System, lr, epochs, E0,
     ts = list(range(0, epochs + 1, every))
     if ts[-1] != epochs:
         ts.append(epochs)
-    Es = (system.Estar + system.Q @ ((decay_base ** t)[:, None] * coef0) for t in ts)
-    return trajectory_from_embeddings(system.world, ts, Es, system=system,
-                                      probes=probes, plan=plan)
+    Es = (system.Estar + system.Q @ ((decay_base**t)[:, None] * coef0) for t in ts)
+    return trajectory_from_embeddings(
+        system.world, ts, Es, system=system, probes=probes, plan=plan
+    )
 
 
 # --------------------------------------------------------------------------- #
 #  Deep: integrate the coupled mean dynamics                                   #
 # --------------------------------------------------------------------------- #
 
-def ode_rhs(Ws, A, C):
-    """dW_l/dt, up to the lr/tau factor."""
-    G = A.T @ (A @ embed(Ws) - C)               # = |D| (H E - B)
+
+def ode_rhs(Ws, M, B):
+    """dW_l/dt, up to the lr/tau factor.
+
+    `M = A^T A` and `B = A^T C`, formed once by the caller.  The gradient is
+    `A^T (A E - C) = M E - B`, and `M` is `P x P` where `A` is `rows x P`, so
+    forming it once turns every substep from a pass over all the facts into one
+    small square product.  On the sixteen-law world that is 6554 rows against
+    354 columns, a 37-fold reduction in work per substep, and the deep
+    integrator makes 32 substeps per epoch at depth 2 and 128 at depth 3.
+    """
+    G = M @ embed(Ws) - B
     pre, suf = products(Ws)
     return [-(prefix_T_dot(pre[k], G) @ suf[k].T) for k in range(len(Ws))]
 
 
-def _rk4_step(Ws, A, C, h):
-    k1 = ode_rhs(Ws, A, C)
-    k2 = ode_rhs([Ws[i] + 0.5 * h * k1[i] for i in range(len(Ws))], A, C)
-    k3 = ode_rhs([Ws[i] + 0.5 * h * k2[i] for i in range(len(Ws))], A, C)
-    k4 = ode_rhs([Ws[i] + h * k3[i] for i in range(len(Ws))], A, C)
-    return [Ws[i] + (h / 6.0) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])
-            for i in range(len(Ws))]
+def _rk4_step(Ws, M, B, h):
+    k1 = ode_rhs(Ws, M, B)
+    k2 = ode_rhs([Ws[i] + 0.5 * h * k1[i] for i in range(len(Ws))], M, B)
+    k3 = ode_rhs([Ws[i] + 0.5 * h * k2[i] for i in range(len(Ws))], M, B)
+    k4 = ode_rhs([Ws[i] + h * k3[i] for i in range(len(Ws))], M, B)
+    return [
+        Ws[i] + (h / 6.0) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])
+        for i in range(len(Ws))
+    ]
 
 
 def integrate(Ws0, A, C, lr, epochs, eval_every=5, substeps=1, method="rk4"):
@@ -74,14 +94,15 @@ def integrate(Ws0, A, C, lr, epochs, eval_every=5, substeps=1, method="rk4"):
     full-batch gradient descent exactly; larger `substeps` converge to the
     continuous-time dynamics.  Returns (epochs, [E(t)], final weights)."""
     Ws = [w.copy() for w in Ws0]
+    M, B = A.T @ A, A.T @ C
     h = lr / substeps
     rec_ep, rec_E = [0], [embed(Ws)]
     for ep in range(1, epochs + 1):
         for _ in range(substeps):
             if method == "rk4":
-                Ws = _rk4_step(Ws, A, C, h)
+                Ws = _rk4_step(Ws, M, B, h)
             else:
-                d = ode_rhs(Ws, A, C)
+                d = ode_rhs(Ws, M, B)
                 Ws = [Ws[k] + h * d[k] for k in range(len(Ws))]
         if ep % eval_every == 0 or ep == epochs:
             rec_ep.append(ep)
@@ -89,29 +110,57 @@ def integrate(Ws0, A, C, lr, epochs, eval_every=5, substeps=1, method="rk4"):
     return np.array(rec_ep), rec_E, Ws
 
 
-def deep_trajectory(system: System, lr, epochs, Ws0, depth,
-                    settings: Settings = DEFAULT, eval_every=None,
-                    probes=None, plan=None):
+def deep_trajectory(
+    system: System,
+    lr,
+    epochs,
+    Ws0,
+    depth,
+    settings: Settings = DEFAULT,
+    eval_every=None,
+    probes=None,
+    plan=None,
+):
     """Trajectory of the integrated deep dynamics.  Returns
     `(Trajectory | None, final_weights)`; the trajectory is None if the
     integration diverged."""
     every = settings.eval_every if eval_every is None else eval_every
-    ep, Es, Wend = integrate(Ws0, system.A, system.C, lr, epochs,
-                             eval_every=every, substeps=settings.substeps(depth),
-                             method=settings.ode_method)
+    ep, Es, Wend = integrate(
+        Ws0,
+        system.A,
+        system.C,
+        lr,
+        epochs,
+        eval_every=every,
+        substeps=settings.substeps(depth),
+        method=settings.ode_method,
+    )
     if not np.all(np.isfinite(Es[-1])):
         return None, Wend
-    return trajectory_from_embeddings(system.world, ep, Es, system=system,
-                                      probes=probes, plan=plan), Wend
+    return (
+        trajectory_from_embeddings(
+            system.world, ep, Es, system=system, probes=probes, plan=plan
+        ),
+        Wend,
+    )
 
 
 # --------------------------------------------------------------------------- #
 #  One entry point                                                             #
 # --------------------------------------------------------------------------- #
 
-def predict(system: System, depth, lr, epochs, init,
-            settings: Settings = DEFAULT, eval_every=None, probes=None,
-            plan=None):
+
+def predict(
+    system: System,
+    depth,
+    lr,
+    epochs,
+    init,
+    settings: Settings = DEFAULT,
+    eval_every=None,
+    probes=None,
+    plan=None,
+):
     """Prospective trajectory at any depth.
 
     `init` is a `ShallowModel`/`DeepModel`, a (P x d) array (N = 1) or a list of
@@ -121,23 +170,28 @@ def predict(system: System, depth, lr, epochs, init,
     """
     if depth == 1:
         E0 = init.embedding() if hasattr(init, "embedding") else np.asarray(init)
-        traj = shallow_trajectory(system, lr, epochs, E0, settings, eval_every,
-                                  probes=probes, plan=plan)
+        traj = shallow_trajectory(
+            system, lr, epochs, E0, settings, eval_every, probes=probes, plan=plan
+        )
         return traj, traj_end_embedding(system, lr, epochs, E0)
     Ws0 = init.W if hasattr(init, "W") else [np.asarray(w) for w in init]
-    return deep_trajectory(system, lr, epochs, Ws0, depth, settings,
-                           eval_every, probes=probes, plan=plan)
+    return deep_trajectory(
+        system, lr, epochs, Ws0, depth, settings, eval_every, probes=probes, plan=plan
+    )
 
 
 def traj_end_embedding(system: System, lr, epochs, E0):
     """E(epochs) under the shallow closed form, without recording anything."""
     decay = (1.0 - lr * system.evals_M) ** epochs
-    return system.Estar + system.Q @ (decay[:, None] * (system.Q.T @ (E0 - system.Estar)))
+    return system.Estar + system.Q @ (
+        decay[:, None] * (system.Q.T @ (E0 - system.Estar))
+    )
 
 
 # --------------------------------------------------------------------------- #
 #  Diagnostic: do the environment's modes stay decoupled with depth?           #
 # --------------------------------------------------------------------------- #
+
 
 def mode_coupling(Ws, Q):
     """Off-diagonal mass of `M_k = Q^T (prefix_k prefix_k^T) Q`, per layer.

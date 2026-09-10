@@ -14,6 +14,7 @@ whose gradient flow is  `tau dE/dt = B - H E`  with
 questions the theory asks of them: how fast does each mode decay, is a given
 law's contrast inside the row space, what is the minimum-norm solution.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,10 +24,10 @@ import numpy as np
 from .config import DEFAULT, Settings
 from .worlds import World
 
-
 # --------------------------------------------------------------------------- #
 #  Assembly                                                                    #
 # --------------------------------------------------------------------------- #
+
 
 def build_matrices(world: World, facts=None, anchors=None, anchor_weight=1.0):
     """(A, C) for a chosen subset of facts/anchors (defaults: the whole world).
@@ -63,26 +64,29 @@ def sparse_rows(A):
 #  System                                                                      #
 # --------------------------------------------------------------------------- #
 
+
 @dataclass
 class System:
     world: World
     A: np.ndarray
     C: np.ndarray
-    evals_M: np.ndarray      # eigenvalues of M = A^T A, descending (sigma_k)
-    Q: np.ndarray            # eigenvectors, columns aligned with evals_M
-    Estar: np.ndarray        # minimum-norm least-squares solution (P x d)
+    evals_M: np.ndarray  # eigenvalues of M = A^T A, descending (sigma_k)
+    Q: np.ndarray  # eigenvectors, columns aligned with evals_M
+    Estar: np.ndarray  # minimum-norm least-squares solution (P x d)
 
     # -- construction ------------------------------------------------------- #
 
     @classmethod
-    def build(cls, world: World, facts=None, anchors=None,
-              settings: Settings = DEFAULT):
+    def build(
+        cls, world: World, facts=None, anchors=None, settings: Settings = DEFAULT
+    ):
         A, C = build_matrices(world, facts, anchors, settings.anchor_weight)
         evals, Q = np.linalg.eigh(A.T @ A)
         order = np.argsort(evals)[::-1]
         Estar, *_ = np.linalg.lstsq(A, C, rcond=None)
-        return cls(world=world, A=A, C=C,
-                   evals_M=evals[order], Q=Q[:, order], Estar=Estar)
+        return cls(
+            world=world, A=A, C=C, evals_M=evals[order], Q=Q[:, order], Estar=Estar
+        )
 
     # -- basic quantities --------------------------------------------------- #
 
@@ -162,8 +166,10 @@ class System:
             ell_perp=ell_perp,
             ell_perp_norm=float(np.linalg.norm(ell_perp)),
             n_hat=(perp_unit / rho) if rho > 1e-12 else np.zeros_like(perp_unit),
-            sigma_slow_loaded=float(self.evals_M[signif].min()) if signif.any()
-            else float("nan"))
+            sigma_slow_loaded=(
+                float(self.evals_M[signif].min()) if signif.any() else float("nan")
+            ),
+        )
 
     def rank_report(self, settings: Settings = DEFAULT) -> dict:
         """Rank, null dimension, and the size of the gap the rank call sits in
@@ -171,10 +177,13 @@ class System:
         sig = self.evals_M
         mask = sig > settings.rank_rtol * sig[0]
         nz, z = sig[mask], sig[~mask]
-        return dict(rank=int(mask.sum()), null_dim=int((~mask).sum()),
-                    sigma_max=float(sig[0]),
-                    sigma_min_nonzero=float(nz.min()) if nz.size else float("nan"),
-                    sigma_max_zero=float(np.abs(z).max()) if z.size else 0.0)
+        return dict(
+            rank=int(mask.sum()),
+            null_dim=int((~mask).sum()),
+            sigma_max=float(sig[0]),
+            sigma_min_nonzero=float(nz.min()) if nz.size else float("nan"),
+            sigma_max_zero=float(np.abs(z).max()) if z.size else 0.0,
+        )
 
     def endpoint(self, E0, settings: Settings = DEFAULT) -> np.ndarray:
         """`E(inf) = E* + Pi_null E(0)`.

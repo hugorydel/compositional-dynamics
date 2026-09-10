@@ -7,6 +7,7 @@ and the two helpers below.
 `relspec` is vendored into this folder, so there is nothing outside the
 repository to find.
 """
+
 import os
 import sys
 

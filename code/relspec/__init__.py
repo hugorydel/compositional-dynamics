@@ -38,22 +38,46 @@ Typical use:
 
     obs.emergence(DEFAULT), pred.emergence(DEFAULT)
 """
+
+from . import io, measure, models, system, theory, train, worlds
 from .config import DEFAULT, Settings, override
-from .measure import (Trajectory, apply_plan, cross_plan, detect_emergence,
-                      law_plan, threshold_time, trajectory_from_embeddings)
+from .measure import (
+    Trajectory,
+    apply_plan,
+    cross_plan,
+    detect_emergence,
+    law_plan,
+    threshold_time,
+    trajectory_from_embeddings,
+)
 from .models import DeepModel, ShallowModel, make_model
 from .system import System, build_matrices, sparse_rows
 from .worlds import Law, World
 
-from . import io, measure, models, system, theory, train, worlds
-
 __all__ = [
-    "DEFAULT", "Settings", "override",
-    "World", "Law", "System", "Trajectory",
-    "ShallowModel", "DeepModel", "make_model",
-    "build_matrices", "sparse_rows",
-    "law_plan", "cross_plan", "apply_plan",
-    "detect_emergence", "threshold_time", "trajectory_from_embeddings",
-    "worlds", "system", "models", "measure", "train", "theory",
+    "DEFAULT",
+    "Settings",
+    "override",
+    "World",
+    "Law",
+    "System",
+    "Trajectory",
+    "ShallowModel",
+    "DeepModel",
+    "make_model",
+    "build_matrices",
+    "sparse_rows",
+    "law_plan",
+    "cross_plan",
+    "apply_plan",
+    "detect_emergence",
+    "threshold_time",
+    "trajectory_from_embeddings",
+    "worlds",
+    "system",
+    "models",
+    "measure",
+    "train",
+    "theory",
     "io",
 ]

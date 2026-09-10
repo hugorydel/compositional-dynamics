@@ -3,6 +3,7 @@
 All results live under `results/<experiment>/`.  Every experiment writes its
 `Settings` alongside its data, so a result file is self-describing.
 """
+
 from __future__ import annotations
 
 import json
@@ -52,6 +53,7 @@ def load_all(name, pattern="*.json", require=None):
     and nothing else -- analysis output goes to `results/analysis/`.
     """
     import glob
+
     out = []
     for p in sorted(glob.glob(os.path.join(results_dir(name), pattern))):
         r = load(p)
@@ -59,6 +61,7 @@ def load_all(name, pattern="*.json", require=None):
             raise ValueError(
                 "%s is in a results directory but is not a result row "
                 "(no %r field). Analysis output belongs in results/analysis/."
-                % (p, require))
+                % (p, require)
+            )
         out.append(r)
     return out

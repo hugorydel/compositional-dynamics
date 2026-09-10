@@ -26,6 +26,7 @@ held out for a law when ground truth places the two entities exactly one
 composite step apart and no training fact states it.  That definition
 works unchanged in all three, which is what lets one scorer serve them.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -33,14 +34,15 @@ from functools import cached_property
 
 import numpy as np
 
-
 # --------------------------------------------------------------------------- #
 #  Types                                                                       #
 # --------------------------------------------------------------------------- #
 
+
 @dataclass
 class Law:
     """One additive compositional law  z = x + y,  by relation-token name."""
+
     name: str
     x_rel: str
     y_rel: str
@@ -49,12 +51,12 @@ class Law:
 
 @dataclass
 class World:
-    entities: list                  # entity token names, in row order
-    relations: list                 # relation token names, in row order
-    facts: list                     # (head, relation, tail), with multiplicity
-    anchors: dict                   # entity name -> fixed value in R^d
-    laws: list                      # list[Law]
-    d: int                          # embedding dimension
+    entities: list  # entity token names, in row order
+    relations: list  # relation token names, in row order
+    facts: list  # (head, relation, tail), with multiplicity
+    anchors: dict  # entity name -> fixed value in R^d
+    laws: list  # list[Law]
+    d: int  # embedding dimension
     meta: dict = field(default_factory=dict)
 
     # -- token indexing ----------------------------------------------------- #
@@ -111,6 +113,7 @@ class World:
 # --------------------------------------------------------------------------- #
 #  Family 1: relational lattices  (the general constructor)                    #
 # --------------------------------------------------------------------------- #
+
 
 def lattice_world(law_specs, d=16, seed=0):
     """
@@ -187,7 +190,7 @@ def lattice_world(law_specs, d=16, seed=0):
         diag = [(i, j) for i in range(m - 1) for j in range(n - 1)]
         rng.shuffle(diag)
         n_train = max(1, int(round(z_frac * len(diag))))
-        for (i, j) in diag[:n_train]:
+        for i, j in diag[:n_train]:
             a, b = "%s_%d_%d" % (prefix, i, j), "%s_%d_%d" % (prefix, i + 1, j + 1)
             law_facts += [(a, rz, b)] * z_rep
 
@@ -205,20 +208,32 @@ def lattice_world(law_specs, d=16, seed=0):
 
         laws.append(Law(name=name, x_rel=rx, y_rel=ry, z_rel=rz))
 
-    return World(entities=entities, relations=relations, facts=facts,
-                 anchors=anchors, laws=laws, d=d,
-                 meta=dict(seed=seed, law_specs=law_specs,
-                           gt_ent=gt_ent, gt_rel=gt_rel,
-                           facts_by_law=facts_by_law,
-                           anchors_by_law=anchors_by_law))
+    return World(
+        entities=entities,
+        relations=relations,
+        facts=facts,
+        anchors=anchors,
+        laws=laws,
+        d=d,
+        meta=dict(
+            seed=seed,
+            law_specs=law_specs,
+            gt_ent=gt_ent,
+            gt_rel=gt_rel,
+            facts_by_law=facts_by_law,
+            anchors_by_law=anchors_by_law,
+        ),
+    )
 
 
 # --------------------------------------------------------------------------- #
 #  H2 family: structural identifiability                                       #
 # --------------------------------------------------------------------------- #
 
-def identifiability_world(seed=0, K=8, k=4, closed_block="A", n_bridge=0,
-                          d=16, rep=1, ground_open_tail=False):
+
+def identifiability_world(
+    seed=0, K=8, k=4, closed_block="A", n_bridge=0, d=16, rep=1, ground_open_tail=False
+):
     """
     Two structurally identical blocks (A, B).  Each has its own premise
     relations `x_b`, `y_b`, its own composite `z_b = x_b + y_b`, `K` premise
@@ -272,10 +287,10 @@ def identifiability_world(seed=0, K=8, k=4, closed_block="A", n_bridge=0,
 
     cb, ob = closed_block, open_block
 
-    for m in range(k):                                   # closed: on triads
+    for m in range(k):  # closed: on triads
         facts.append(("%sT%d_0" % (cb, m), "z" + cb, "%sT%d_2" % (cb, m)))
 
-    for m in range(k):                                   # open: on loose pairs
+    for m in range(k):  # open: on loose pairs
         f0, f1 = "%sF%d_0" % (ob, m), "%sF%d_1" % (ob, m)
         entities += [f0, f1]
         o = rng.standard_normal(d)
@@ -285,15 +300,30 @@ def identifiability_world(seed=0, K=8, k=4, closed_block="A", n_bridge=0,
             anchors[f1] = gt_ent[f1]
         facts.append((f0, "z" + ob, f1))
 
-    for m in range(n_bridge):                            # linking evidence
+    for m in range(n_bridge):  # linking evidence
         facts.append(("%sT%d_0" % (ob, m), "z" + ob, "%sT%d_2" % (ob, m)))
 
-    return World(entities=entities, relations=relations, facts=facts,
-                 anchors=anchors, laws=laws, d=d,
-                 meta=dict(seed=seed, K=K, k=k, rep=rep,
-                           closed_block=cb, open_block=ob, n_bridge=n_bridge,
-                           ground_open_tail=ground_open_tail,
-                           gt_ent=gt_ent, gt_rel=gt_rel))
+    return World(
+        entities=entities,
+        relations=relations,
+        facts=facts,
+        anchors=anchors,
+        laws=laws,
+        d=d,
+        meta=dict(
+            seed=seed,
+            K=K,
+            k=k,
+            rep=rep,
+            closed_block=cb,
+            open_block=ob,
+            n_bridge=n_bridge,
+            ground_open_tail=ground_open_tail,
+            gt_ent=gt_ent,
+            gt_rel=gt_rel,
+        ),
+    )
+
 
 # --------------------------------------------------------------------------- #
 #  Family 2: the F1 and F3 experiment worlds, and the held-out sets            #
@@ -302,38 +332,66 @@ def identifiability_world(seed=0, K=8, k=4, closed_block="A", n_bridge=0,
 D = 16
 TOL = 1e-9
 
-# Searched by `search_ladder.py` over 324 lattice shapes, under the regime the
-# figure uses: `Z_FRAC` of each law's diagonals trained on, the rest withheld
-# and scored by held-out composite retrieval.  The objective was maximin
-# spacing of the eight rungs' predicted emergence times in log space, subject
-# to every law emerging inside the epoch budget.  Rung times step by about
-# 1.5x each, spanning 23.6x across the sixteen laws.
+# Searched by `search_ladder.py`, under the regime the figure uses: `Z_FRAC` of
+# each law's diagonals trained on, the rest withheld and scored by held-out
+# composite retrieval.  Three things are traded.  Every law must emerge between
+# 2,000 and 20,000 epochs at `lr_target = 0.03`.  Within that, the smallest gap
+# between consecutive rung emergence times, in log space, is maximised.  And it
+# must not buy that spacing with evidence: per-fact descent walks every
+# constraint row once per epoch, so training cost is rows times epochs, and the
+# world is capped at 2,000 rows with repetitions capped at 8.  Achieved gap
+# 0.072 against an ideal of 0.143, in 1,820 rows, with sixteen laws spanning
+# 2,800 to 19,500 epochs.  The window itself caps the spread at tenfold.
 LADDER = (
-    dict(m=4, n=4, rep_x=24, rep_y=24),
-    dict(m=4, n=5, rep_x=24, rep_y=12),
-    dict(m=4, n=4, rep_x=6, rep_y=24),
-    dict(m=5, n=5, rep_x=24, rep_y=6),
-    dict(m=4, n=5, rep_x=3, rep_y=24),
-    dict(m=4, n=5, rep_x=4, rep_y=2),
-    dict(m=5, n=4, rep_x=16, rep_y=1),
-    dict(m=5, n=4, rep_x=1, rep_y=8),
+    dict(m=5, n=4, rep_x=1, rep_y=1),
+    dict(m=4, n=4, rep_x=2, rep_y=2),
+    dict(m=4, n=4, rep_x=3, rep_y=4),
+    dict(m=4, n=4, rep_x=4, rep_y=6),
+    dict(m=5, n=4, rep_x=2, rep_y=8),
+    dict(m=4, n=4, rep_x=1, rep_y=4),
+    dict(m=4, n=5, rep_x=4, rep_y=8),
+    dict(m=4, n=4, rep_x=3, rep_y=6),
 )
 Z_FRAC = 0.25
 
+# Experiment 1, settled.  Measured on the ladder above at `lr_target = 0.03`,
+# by integrating the assembled world at each depth.  All sixteen laws emerge at
+# every depth; the budgets leave headroom above the slowest.
+#
+#   depth 1   2,800 to 19,500 epochs   spread 7.0x
+#   depth 2     800 to  1,750 epochs   spread 2.2x
+#   depth 3   1,100 to  1,450 epochs   spread 1.3x
+#
+# Depths 2 and 3 emerge EARLIER in epochs than depth 1, so all three fit one
+# shared log axis.  The between-law spread compresses with depth, and it does
+# so toward the same floor on an independently searched ladder, so that is a
+# property of the dynamics rather than of this particular ladder.
+F1_EPOCHS = {1: 30000, 2: 4000, 3: 4000}
+F1_EVERY = {1: 100, 2: 25, 3: 25}
 
-def emergence_world(seed=0, ladder=LADDER, z_frac=Z_FRAC, d=D,
-                    share_base=True):
+
+def emergence_world(seed=0, ladder=LADDER, z_frac=Z_FRAC, d=D, share_base=True):
     """F1.  Two laws per ladder rung, each on its own lattice, with `z_frac` of
     the diagonals trained on and the rest withheld as the generalisation set."""
     specs = []
     for bi, c in enumerate(ladder):
         for k in range(2):
             base = "b%d" % bi if share_base else "b%d_%d" % (bi, k)
-            specs.append(dict(name="L%d_%d" % (bi, k), x=base,
-                              y="y%d_%d" % (bi, k), z="z%d_%d" % (bi, k),
-                              prefix="B%dL%d" % (bi, k), m=c["m"], n=c["n"],
-                              rep_x=c["rep_x"], rep_y=c["rep_y"],
-                              z_rep=c["rep_y"], z_frac=z_frac))
+            specs.append(
+                dict(
+                    name="L%d_%d" % (bi, k),
+                    x=base,
+                    y="y%d_%d" % (bi, k),
+                    z="z%d_%d" % (bi, k),
+                    prefix="B%dL%d" % (bi, k),
+                    m=c["m"],
+                    n=c["n"],
+                    rep_x=c["rep_x"],
+                    rep_y=c["rep_y"],
+                    z_rep=c["rep_y"],
+                    z_frac=z_frac,
+                )
+            )
     return lattice_world(specs, d=d, seed=seed)
 
 
@@ -365,8 +423,7 @@ def integration_world(seed=0, link=False, m=3, d=D):
                 if j + 1 < m:
                     facts.append((_name(pre, i, j), "y", _name(pre, i, j + 1)))
                 if i + 1 < m and j + 1 < m:
-                    facts.append((_name(pre, i, j), "z",
-                                  _name(pre, i + 1, j + 1)))
+                    facts.append((_name(pre, i, j), "z", _name(pre, i + 1, j + 1)))
         if anchored:
             for c in (_name(pre, 0, 0), _name(pre, 1, 0), _name(pre, 0, 1)):
                 anchors[c] = gt_e[c]
@@ -380,15 +437,21 @@ def integration_world(seed=0, link=False, m=3, d=D):
     if link:
         facts.append((_name("A", m - 1, 0), "x", _name("B", 0, 0)))
 
-    return World(entities=ents, relations=list(gt_r), facts=facts,
-                 anchors=anchors, laws=[Law("Lz", "x", "y", "z")], d=d,
-                 meta=dict(gt_ent=gt_e, gt_rel=gt_r, m=m, link=link,
-                           blocks=("A", "B")))
+    return World(
+        entities=ents,
+        relations=list(gt_r),
+        facts=facts,
+        anchors=anchors,
+        laws=[Law("Lz", "x", "y", "z")],
+        d=d,
+        meta=dict(gt_ent=gt_e, gt_rel=gt_r, m=m, link=link, blocks=("A", "B")),
+    )
 
 
 # --------------------------------------------------------------------------- #
 #  Held-out sets, derived from the world                                       #
 # --------------------------------------------------------------------------- #
+
 
 def _shown(world):
     return {(h, r, t) for h, r, t in world.facts}
@@ -411,8 +474,7 @@ def held_composites(world, reference=None):
         z = world.meta["gt_rel"][law.z_rel]
         pairs = []
         for ai, a in enumerate(names):
-            near = np.where(np.linalg.norm(X - (X[ai] + z)[None, :],
-                                           axis=1) < TOL)[0]
+            near = np.where(np.linalg.norm(X - (X[ai] + z)[None, :], axis=1) < TOL)[0]
             for bi in near:
                 b = names[bi]
                 if (a, law.z_rel, b) not in shown:

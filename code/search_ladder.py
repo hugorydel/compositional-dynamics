@@ -1,177 +1,290 @@
 """Search lattice shapes for the Figure 1 ladder.
 
-Figure 1 needs laws that emerge at clearly separated times, under the regime
-the figure actually uses: `z_frac` of each law's diagonals trained on, the rest
-withheld and scored by held-out composite retrieval.
+Figure 1 needs laws that emerge at clearly separated times, inside a training
+window short enough to run at three depths, under the regime the figure uses:
+`Z_FRAC` of each law's diagonals trained on, the rest withheld and scored by
+held-out composite retrieval.
+
+Three things are being traded, and the third is why this was re-run.
+
+  window     every law must emerge between `T_MIN` and `T_MAX`, at the settled
+             `lr_target = 0.03`.
+  spacing    within that, the smallest gap between consecutive RUNG emergence
+             times, in log space, is maximised.  Maximin inside a fixed window
+             is geometric spacing; with eight rungs across a twentyfold window
+             the best attainable gap is `log10(20) / 7 = 0.186`.
+  size       and it must not buy spacing with evidence.  Per-fact stochastic
+             descent walks every constraint row once per epoch, so training
+             cost is rows times epochs.  An earlier search left repetition
+             counts free and chose values up to 16, giving 3,740 facts and
+             about 455 million sequential updates for one depth-1 run.  So
+             repetitions are now capped, and among ladders that clear a
+             spacing floor the objective minimises rows.
+
+Scored per rung because a rung's two laws are structurally identical, differing
+only in the random draw of their relation vectors and of which diagonals are
+shown.  They are one design point, and scoring them as two makes them tie at
+gap zero and flattens the objective.
 
 Why the search integrates rather than scoring a spectral summary.  Scalar
-summaries of a law's spectral support do not order emergence well enough to
-optimise against: measured on the provisional ladder, the support-weighted
-eigenvalue reaches Spearman 0.65 against t*, the slowest weighted mode 0.50,
-and the weighted harmonic mean is negatively correlated.  The theory's
-predictor is the full trajectory, not a formula over summary statistics, so the
-search uses the depth-1 closed form directly.
+summaries of spectral support do not order emergence well enough to optimise
+against: measured on sixteen laws, the support-weighted eigenvalue reaches
+Spearman 0.65 against t*, the slowest weighted mode 0.50, and the weighted
+harmonic mean is negatively correlated.  The theory's predictor is the full
+trajectory, not a formula over summary statistics.
 
-Why it can afford to.  A ladder's lattices share no token across rungs, so
-`A` is block diagonal and each rung's spectrum is independent.  The learning
-rate is `lr_target / evals_M[0]` with `evals_M` the raw eigenvalues of `A^T A`,
-so every rate is `lr_target * lambda_k / sigma_max`, and the fact-count
-normalisation cancels.  A rung evaluated alone therefore has the same
-trajectory it will have in an assembly, rescaled in time by exactly
+Two stages, because integrating every candidate assembly would be too slow but
+the cheap estimate is not exact.
 
-    t_assembly = t_alone * sigma_max(assembly) / sigma_max(rung alone)
+  coarse   A ladder's rungs share no token, so `A` is block diagonal and each
+           rung's spectrum is independent.  The learning rate is
+           `lr_target / evals_M[0]` over the raw eigenvalues of `A^T A`, so
+           every rate is `lr_target * lambda_k / sigma_max` and the fact-count
+           normalisation cancels.  A rung integrated alone therefore has the
+           trajectory it will have in an assembly, rescaled in time by
+           `sigma_max(assembly) / sigma_max(rung alone)`.  Each shape is
+           integrated once; any assembly is then scored arithmetically.
 
-with `sigma_max(assembly)` the largest raw eigenvalue over the chosen rungs.
-So each candidate shape is integrated once, and any assembly of eight is then
-scored arithmetically.
-
-Objective: maximise the smallest gap, in log space, between consecutive RUNG
-emergence times, subject to every law emerging inside the epoch budget and
-withholding at least `MIN_HELD` composites.  Maximin spacing favours a wide
-range and an even one at the same time.  It is scored per rung because a
-rung's two laws are structurally identical and differ only by the random draw,
-so they are one design point and would otherwise tie at gap zero and flatten
-the objective.
+  refine   That rescaling is exact in continuous time but does not capture the
+           fact that a rung's slice of the initialisation differs between the
+           solo and assembled worlds, which moves t* enough to matter.  So the
+           coarse winner is refined by integrating whole assembled worlds.
 """
-import itertools
+
 import json
 import time
 
+import _paths  # noqa: F401
 import numpy as np
+from _paths import result
+from relspec import System, models, theory, worlds
+from relspec.config import override
+from relspec.measure import law_plan
+from relspec.worlds import lattice_world
 
-import _paths                                                 # noqa: F401
-from _paths import result                                     # noqa: E402
-from relspec import System, models, theory, worlds            # noqa: E402
-from relspec.config import override                           # noqa: E402
-from relspec.measure import law_plan                          # noqa: E402
-from relspec.worlds import lattice_world                      # noqa: E402
-
-S = override(lr_target=0.3, eval_every=100)
+S = override(eval_every=1000)  # lr_target comes from the settled default, 0.03
 Z_FRAC = 0.25
 MIN_HELD = 6
 N_RUNGS = 8
-ALONE_EPOCHS, ALONE_EVERY = 200000, 200
-T_MAX = 60000                       # assembled t* must fit this budget
 SEED = 0
 
-SHAPES = [dict(m=m, n=n, rep_x=rx, rep_y=ry)
-          for m in (4, 5) for n in (4, 5)
-          for rx in (1, 2, 3, 4, 6, 8, 12, 16, 24)
-          for ry in (1, 2, 3, 4, 6, 8, 12, 16, 24)]
+T_MIN, T_MAX = 2000, 20000  # every law emerges inside this, at lr_target 0.03
+IDEAL_GAP = np.log10(T_MAX / T_MIN) / (N_RUNGS - 1)
+ROWS_MAX = 2000  # rows budget; training cost is rows x epochs
+ANCHOR_ROWS = 3 * 2 * N_RUNGS  # three corners per lattice, two lattices a rung
+
+ALONE_EPOCHS, ALONE_EVERY = 600000, 1000
+FULL_EPOCHS, FULL_EVERY = 40000, 100
+REFINE_ITERS = 250
+
+MAX_REP = 8  # repetition is what inflates the world
+_REPS = [r for r in (1, 2, 3, 4, 6, 8, 12, 16, 24) if r <= MAX_REP]
+SHAPES = [
+    dict(m=m, n=n, rep_x=rx, rep_y=ry)
+    for m in (4, 5)
+    for n in (4, 5)
+    for rx in _REPS
+    for ry in _REPS
+]
 
 
-def rung_specs(c, bi=0, z_frac=Z_FRAC):
-    return [dict(name="L%d_%d" % (bi, k), x="b%d" % bi,
-                 y="y%d_%d" % (bi, k), z="z%d_%d" % (bi, k),
-                 prefix="B%dL%d" % (bi, k), m=c["m"], n=c["n"],
-                 rep_x=c["rep_x"], rep_y=c["rep_y"], z_rep=c["rep_y"],
-                 z_frac=z_frac) for k in range(2)]
+def rung_specs(c, bi=0):
+    return [
+        dict(
+            name="L%d_%d" % (bi, k),
+            x="b%d" % bi,
+            y="y%d_%d" % (bi, k),
+            z="z%d_%d" % (bi, k),
+            prefix="B%dL%d" % (bi, k),
+            m=c["m"],
+            n=c["n"],
+            rep_x=c["rep_x"],
+            rep_y=c["rep_y"],
+            z_rep=c["rep_y"],
+            z_frac=Z_FRAC,
+        )
+        for k in range(2)
+    ]
 
 
-def evaluate(c):
-    """Integrate one candidate shape alone.  Returns its raw sigma_max, its two
-    laws' emergence times at that lr, and the held-out count, or None if the
-    shape is unusable."""
+def evaluate_solo(c):
+    """Integrate one shape alone.  None if unusable."""
     w = lattice_world(rung_specs(c), d=S.d, seed=SEED)
     held = worlds.held_composites(w)
     n_held = min(len(v) for v in held.values())
     if n_held < MIN_HELD:
         return None
     s = System.build(w, settings=S)
-    plan = law_plan(w, held)
-    tr, _ = theory.predict(s, 1, s.lr(1, settings=S), ALONE_EPOCHS,
-                           models.make_model(w, 1, S), settings=S,
-                           eval_every=ALONE_EVERY, plan=plan)
+    tr, _ = theory.predict(
+        s,
+        1,
+        s.lr(1, settings=S),
+        ALONE_EPOCHS,
+        models.make_model(w, 1, S),
+        settings=S,
+        eval_every=ALONE_EVERY,
+        plan=law_plan(w, held),
+    )
     ts = tr.emergence(S)
-    t = [ts[l.name] for l in w.laws]
+    t = [ts[law.name] for law in w.laws]
     if not all(np.isfinite(t)):
         return None
-    return dict(shape=c, sigma=float(s.evals_M[0]), t=[float(x) for x in t],
-                n_held=int(n_held))
+    return dict(
+        shape=c,
+        sigma=float(s.evals_M[0]),
+        t=[float(x) for x in t],
+        n_held=int(n_held),
+        facts=len(w.facts),
+    )
 
 
-def times(chosen):
-    """The 16 assembled emergence times implied by a set of rungs."""
+def evaluate_full(ladder):
+    """Integrate a whole assembled world.  Returns (law times, row count)."""
+    w = worlds.emergence_world(SEED, ladder=tuple(ladder), z_frac=Z_FRAC)
+    s = System.build(w, settings=S)
+    tr, _ = theory.predict(
+        s,
+        1,
+        s.lr(1, settings=S),
+        FULL_EPOCHS,
+        models.make_model(w, 1, S),
+        settings=S,
+        eval_every=FULL_EVERY,
+        plan=law_plan(w, worlds.held_composites(w)),
+    )
+    ts = tr.emergence(S)
+    return np.array([ts[law.name] for law in w.laws], float), s.A.shape[0]
+
+
+def score(t, rows):
+    """Maximise spacing inside a row budget, with violations graded.
+
+    Training cost is rows times epochs, and per-fact descent walks every row
+    once per epoch, so the budget is what actually has to be capped.  A hard
+    reject leaves the search no gradient when it starts outside the budget, so
+    an infeasible ladder scores its total violation, negated.  Every feasible
+    ladder therefore beats every infeasible one, and inside the infeasible
+    region the search can still tell which way is out.
+    """
+    t = np.asarray(t, float)
+    if not np.all(np.isfinite(t)) or t.min() <= 0:
+        return -100.0
+    pen = max(0.0, (rows - ROWS_MAX) / ROWS_MAX)
+    pen += 3.0 * max(0.0, np.log10(T_MIN / t.min()))
+    pen += 3.0 * max(0.0, np.log10(t.max() / T_MAX))
+    if pen > 0:
+        return -pen
+    rung = t.reshape(N_RUNGS, 2).mean(axis=1)
+    return float(np.diff(np.sort(np.log10(rung))).min())
+
+
+def coarse(chosen):
     smax = max(r["sigma"] for r in chosen)
-    return np.array([t * smax / r["sigma"] for r in chosen for t in r["t"]])
+    t = np.array([x * smax / r["sigma"] for r in chosen for x in r["t"]])
+    rows = sum(r["facts"] for r in chosen) + ANCHOR_ROWS
+    return t, rows
 
 
-def rung_times(chosen):
-    """One time per rung.  The two laws in a rung are structurally identical --
-    same shape, same repetitions, differing only in the random draw of their
-    relation vectors and of which diagonals are shown -- so they are one design
-    point, not two, and the objective must not be scored as if they were."""
-    smax = max(r["sigma"] for r in chosen)
-    return np.array([np.mean(r["t"]) * smax / r["sigma"] for r in chosen])
-
-
-def objective(chosen):
-    t = times(chosen)
-    if t.max() > T_MAX:
-        return -np.inf
-    g = np.diff(np.sort(np.log10(rung_times(chosen))))
-    return float(g.min())
-
-
-def search(pool, iters=40000, rng=None):
+def coarse_search(pool, iters=80000, rng=None):
     rng = rng or np.random.default_rng(0)
-    order = sorted(range(len(pool)), key=lambda i: pool[i]["t"][0] / pool[i]["sigma"])
-    pick = [order[int(round(k))] for k in
-            np.linspace(0, len(order) - 1, N_RUNGS)]
-    pick = list(dict.fromkeys(pick))
-    while len(pick) < N_RUNGS:
+    order = sorted(
+        range(len(pool)), key=lambda i: np.mean(pool[i]["t"]) / pool[i]["sigma"]
+    )
+    best = list(
+        dict.fromkeys(
+            order[int(round(k))] for k in np.linspace(0, len(order) - 1, N_RUNGS)
+        )
+    )
+    while len(best) < N_RUNGS:
         c = int(rng.integers(len(pool)))
-        if c not in pick:
-            pick.append(c)
-    best, bs = list(pick), objective([pool[i] for i in pick])
+        if c not in best:
+            best.append(c)
+    bs = score(*coarse([pool[i] for i in best]))
     for _ in range(iters):
         cand = list(best)
         cand[int(rng.integers(N_RUNGS))] = int(rng.integers(len(pool)))
         if len(set(cand)) < N_RUNGS:
             continue
-        v = objective([pool[i] for i in cand])
+        v = score(*coarse([pool[i] for i in cand]))
         if v > bs:
             best, bs = cand, v
     return [pool[i] for i in best], bs
+
+
+def refine(pool, chosen, rng=None):
+    rng = rng or np.random.default_rng(1)
+    cur = [r["shape"] for r in chosen]
+    t, rows = evaluate_full(cur)
+    bs = score(t, rows)
+    print("  refine start: score %.4f, rows %d" % (bs, rows), flush=True)
+    t0 = time.time()
+    for it in range(REFINE_ITERS):
+        cand = list(cur)
+        cand[int(rng.integers(N_RUNGS))] = pool[int(rng.integers(len(pool)))]["shape"]
+        if any(cand.count(c) > 1 for c in cand):
+            continue
+        tt, rr = evaluate_full(cand)
+        v = score(tt, rr)
+        if v > bs:
+            cur, bs, t, rows = cand, v, tt, rr
+            gap = np.diff(np.sort(np.log10(tt.reshape(N_RUNGS, 2).mean(1)))).min()
+            print(
+                "  refine %3d: score %.4f | gap %.3f | rows %4d | t* %.0f-%.0f (%.0fs)"
+                % (it, bs, gap, rows, tt.min(), tt.max(), time.time() - t0),
+                flush=True,
+            )
+    return cur, bs, t, rows
 
 
 def main():
     t0 = time.time()
     pool = []
     for k, c in enumerate(SHAPES):
-        r = evaluate(c)
+        r = evaluate_solo(c)
         if r is not None:
             pool.append(r)
-        if (k + 1) % 60 == 0:
-            print("  evaluated %d/%d, %d usable, %.0fs"
-                  % (k + 1, len(SHAPES), len(pool), time.time() - t0), flush=True)
-    print("pool: %d usable shapes of %d, %.0fs" % (len(pool), len(SHAPES),
-                                                   time.time() - t0))
+        if (k + 1) % 40 == 0:
+            print(
+                "  solo %d/%d, %d usable, %.0fs"
+                % (k + 1, len(SHAPES), len(pool), time.time() - t0),
+                flush=True,
+            )
+    print("pool: %d usable of %d, %.0fs" % (len(pool), len(SHAPES), time.time() - t0))
 
-    chosen, sc = search(pool)
-    t = np.sort(times(chosen))
+    chosen, cs = coarse_search(pool)
+    print("coarse: score %.4f" % cs, flush=True)
+    ladder, sc, t, rows = refine(pool, chosen)
+
+    ts = np.sort(t)
+    gap = float(np.diff(np.sort(np.log10(t.reshape(N_RUNGS, 2).mean(1)))).min())
     print()
-    rt = np.sort(rung_times(chosen))
-    print("chosen ladder: min log10 rung gap %.3f, t* %.0f to %.0f, spread %.1fx"
-          % (sc, t.min(), t.max(), t.max() / t.min()))
-    print("   rung times:   %s" % " ".join("%.0f" % x for x in rt))
-    for r in sorted(chosen, key=lambda r: r["t"][0] / r["sigma"]):
-        c = r["shape"]
-        print("   m=%d n=%d rep_x=%-3d rep_y=%-3d  held %2d"
-              % (c["m"], c["n"], c["rep_x"], c["rep_y"], r["n_held"]))
-    print("   assembled t*: %s" % " ".join("%.0f" % x for x in t))
-
-    rec = dict(z_frac=Z_FRAC, min_held=MIN_HELD, t_max=T_MAX, seed=SEED,
-               score=sc, ladder=[r["shape"] for r in chosen],
-               predicted_t=[float(x) for x in t])
+    print(
+        "FINAL: gap %.4f of ideal %.4f | rows %d | t* %.0f to %.0f, spread %.1fx"
+        % (gap, IDEAL_GAP, rows, ts.min(), ts.max(), ts.max() / ts.min())
+    )
+    print("   t*: %s" % " ".join("%.0f" % x for x in ts))
     with open(result("ladder_search.json"), "w") as f:
-        json.dump(rec, f, indent=1)
+        json.dump(
+            dict(
+                z_frac=Z_FRAC,
+                window=[T_MIN, T_MAX],
+                lr_target=S.lr_target,
+                max_rep=MAX_REP,
+                gap=gap,
+                rows=int(rows),
+                ladder=ladder,
+                t=[float(x) for x in ts],
+            ),
+            f,
+            indent=1,
+        )
     print()
     print("LADDER = (")
-    for r in sorted(chosen, key=lambda r: r["t"][0] / r["sigma"]):
-        c = r["shape"]
-        print("    dict(m=%d, n=%d, rep_x=%d, rep_y=%d),"
-              % (c["m"], c["n"], c["rep_x"], c["rep_y"]))
+    for c in ladder:
+        print(
+            "    dict(m=%d, n=%d, rep_x=%d, rep_y=%d),"
+            % (c["m"], c["n"], c["rep_x"], c["rep_y"])
+        )
     print(")")
 
 

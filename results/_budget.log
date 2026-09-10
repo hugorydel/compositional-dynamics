@@ -1,0 +1,14 @@
+F2 identifiability, staged: bridge inserted at the switch
+  N=1 law A (closed): retrieval 100% at     4500 | geometric<0.5 at     6500
+  N=1 law B (open  ): retrieval 100% at    43500 | geometric<0.5 at    45000
+  N=2 law A (closed): retrieval 100% at     1000 | geometric<0.5 at     1000
+  N=2 law B (open  ): retrieval 100% at     4300 | geometric<0.5 at     4300
+  N=3 law A (closed): retrieval 100% at      900 | geometric<0.5 at      600
+  N=3 law B (open  ): retrieval 100% at     4100 | geometric<0.5 at     4100
+
+F3 integration, staged: linking fact inserted at the switch
+  behavioural = all 80 cross comparisons ranked first and staying
+  geometric   = offset error, in units of one x step, below a level
+  N=1 switch  40000 | behavioural    43500 | geo<1.0    211000 | geo<0.5    350500 | geo<0.1     never  (0s, final geo 3.20e-01)
+  N=2 switch   4000 | behavioural     4700 | geo<1.0     12500 | geo<0.5     14700 | geo<0.1     19200  (34s, final geo 1.54e-03)
+  N=3 switch   4000 | behavioural     4600 | geo<1.0      7400 | geo<0.5      8000 | geo<0.1      9400  (223s, final geo 1.51e-03)
