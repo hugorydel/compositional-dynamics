@@ -1,0 +1,13 @@
+  wrote f1   w00 N=1    (583s)
+  wrote f2   w00 N=1 A  (21s)
+  wrote f2   w00 N=1 B  (22s)
+  skip f3   w00 N=1 
+  wrote f1   w00 N=2    (155s)
+  wrote f2   w00 N=2 A  (12s)
+  wrote f2   w00 N=2 B  (12s)
+  skip f3   w00 N=2 
+  wrote f1   w00 N=3    (321s)
+  wrote f2   w00 N=3 A  (28s)
+  wrote f2   w00 N=3 B  (30s)
+  skip f3   w00 N=3 
+all cells done in 19.8 min

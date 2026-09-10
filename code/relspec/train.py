@@ -52,6 +52,7 @@ def train(
     geo = {n: [] for n in names}
     hit = {n: [] for n in names}
     err = {n: [] for n in names}
+    rnk = {n: [] for n in names}
     probe_rec = {k: [] for k in (probes or {})}
 
     def record(ep):
@@ -59,12 +60,13 @@ def train(
         rec_epochs.append(ep)
         losses.append(system.loss(E))
         if plan:
-            r, g, h, e = apply_plan(plan, E)
+            r, g, h, e, q = apply_plan(plan, E)
             for n in names:
                 ret[n].append(r[n])
                 geo[n].append(g[n])
                 hit[n].append(h[n])
                 err[n].append(e[n])
+                rnk[n].append(q[n])
         for k, v in (probes or {}).items():
             probe_rec[k].append(np.asarray(v @ E).copy())
 
@@ -80,6 +82,7 @@ def train(
     return Trajectory(
         epochs=np.asarray(rec_epochs, float),
         retrieval={n: np.asarray(v, float) for n, v in ret.items()},
+        rank={n: np.asarray(v, float) for n, v in rnk.items()},
         geometric={n: np.asarray(v, float) for n, v in geo.items()},
         hits={n: np.asarray(v, bool) for n, v in hit.items()},
         errs={

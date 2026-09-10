@@ -43,17 +43,19 @@ def main():
             ("ground truth", gt_embedding(w)),
             ("random", gt_embedding(w, rng)),
         ):
-            r, g, _, _ = apply_plan(plan, E)
+            r, g, _, _, q = apply_plan(plan, E)
             rv, gv = np.array(list(r.values())), np.array(list(g.values()))
             print(
-                "%-20s %-13s retrieval min %5.1f max %5.1f | "
-                "geometric max %.2e" % (lab, tag, rv.min(), rv.max(), gv.max())
+                "%-20s %-13s retrieval min %5.1f max %5.1f | rank %5.1f | "
+                "geometric max %.2e"
+                % (lab, tag, rv.min(), rv.max(),
+                   float(np.mean(list(q.values()))), gv.max())
             )
 
     w = worlds.integration_world(0, link=True)
     plan = cross_plan(w, worlds.held_cross(w))
     for tag, E in (("ground truth", gt_embedding(w)), ("random", gt_embedding(w, rng))):
-        r, g, _, e = apply_plan(plan, E)
+        r, g, _, e, q = apply_plan(plan, E)
         print(
             "%-20s %-13s resolved %5.1f%% | offset error %.2e"
             % ("F3 integration", tag, r["cross"], e["cross"].mean())

@@ -369,6 +369,54 @@ Z_FRAC = 0.25
 F1_EPOCHS = {1: 30000, 2: 4000, 3: 4000}
 F1_EVERY = {1: 100, 2: 25, 3: 25}
 
+# Experiments 2 and 3, settled.  Both are staged: one fact is inserted at the
+# switch and training continues on the same weights.  Plot them against epochs
+# SINCE the switch, so the three depth columns align at zero even though their
+# budgets differ by an order of magnitude.
+#
+# The switch is set per depth, at 1.5x the measured point where that depth's
+# pre-intervention control has settled.  Forcing one absolute switch epoch
+# everywhere would make depths 2 and 3 sit flat for thousands of epochs waiting
+# for depth 1, and once the axes are aligned to the switch it buys nothing.
+#
+#   control settles          depth 1   depth 2   depth 3
+#   F2 closed law resolved     6,500     1,000       900
+#   F3 no-link retrieval at 0  5,500       600       650
+#
+# After the switch, F2's open law reaches full retrieval in 3,800 / 300 / 140
+# epochs, but its composition error takes 29,300 / 1,720 / 160 to fall below
+# 0.5, and the post-switch budget is set by the slower of the two.
+#
+# Those recovery figures must be measured AT the switch point that will be
+# used.  An earlier pass measured them with the switch at 40,000 and applied
+# them to a switch at 10,000; recovery was three times longer than that
+# predicted, because an earlier switch leaves the shared relational geometry
+# less settled and the open law's composite has further to travel.  The first
+# world 0 run was budgeted from those stale numbers and three of its six arms
+# ended before the composition error crossed 0.5.
+#
+# F3 is different, and deliberately not sized to a geometric target.  Its two
+# measures dissociate: the eighty comparisons become behaviourally available
+# 3,500 / 700 / 600 epochs after the linking fact, but the offset error takes
+# far longer, and at depth 1 it does not converge at any affordable budget --
+# 310,500 epochs to reach half a step, still 0.32 after 400,000.  Depth 1 is
+# therefore capped at 100,000, where the error has fallen from 3.2 to 1.6.
+# The unconverged depth 1 panel IS the depth result and should not be padded
+# out to hide it.
+#
+# One caveat for the F3 caption: the no-link control has no geometric plateau.
+# Its offset error drifts upward at every depth, 2.94 to 3.66 at depth 1 over
+# 30,000 epochs and to 3.85 and 4.08 at depths 2 and 3, as the free coordinate
+# creeps toward the minimum-norm solution.  The control line rises; it does not
+# sit flat.
+F2_SWITCH = {1: 10000, 2: 1500, 3: 1500}
+F2_AFTER = {1: 40000, 2: 3000, 3: 1000}
+F2_EVERY = {1: 50, 2: 10, 3: 10}
+
+F3_SWITCH = {1: 8000, 2: 1000, 3: 1000}
+F3_AFTER = {1: 100000, 2: 20000, 3: 8000}
+F3_EVERY = {1: 250, 2: 50, 3: 25}
+
 
 def emergence_world(seed=0, ladder=LADDER, z_frac=Z_FRAC, d=D, share_base=True):
     """F1.  Two laws per ladder rung, each on its own lattice, with `z_frac` of
@@ -480,6 +528,24 @@ def held_composites(world, reference=None):
                 if (a, law.z_rel, b) not in shown:
                     pairs.append((a, b))
         out[law.name] = pairs
+    return out
+
+
+def law_entities(world, law):
+    """The entities a law's own structure touches, which is the candidate pool
+    its held-out queries should be ranked against.
+
+    Ranking a query against every entity in the world makes the measure depend
+    on how many unrelated structures the world happens to contain: in the
+    sixteen-law emergence world that is 280 candidates of which about 94 per
+    cent belong to other lattices, and a rank flip against one of them says
+    nothing about the law.  The pool is the entities touched by facts using the
+    law's own y or z relation, which is its lattice or block.  The x relation is
+    deliberately excluded because rungs share it.
+    """
+    keep = {law.y_rel, law.z_rel}
+    out = {h for h, r, _ in world.facts if r in keep}
+    out |= {t for _, r, t in world.facts if r in keep}
     return out
 
 
