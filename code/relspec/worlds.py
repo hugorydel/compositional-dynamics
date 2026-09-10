@@ -549,6 +549,26 @@ def law_entities(world, law):
     return out
 
 
+def freed_coefficients(system, pairs):
+    """Each pair's coefficient on the null direction a linking fact removes.
+
+    The unlinked world has a one-dimensional null space: one global offset of
+    the unanchored copy that the facts do not fix.  A pair's contrast is
+    `e_b - e_a`, so its exposure to that freedom is `n_b - n_a`.  Pairs with a
+    large coefficient are the ones the linking fact actually settles.
+    """
+    import numpy as np
+
+    _, sv, Vt = np.linalg.svd(system.A)
+    tol = max(system.A.shape) * np.finfo(float).eps * sv.max()
+    N = Vt[int((sv > tol).sum()):]
+    if not len(N):
+        return np.zeros(len(pairs))
+    n = N[0]
+    ti = system.world.tok_index
+    return np.array([n[ti[b]] - n[ti[a]] for a, b, _, _ in pairs], float)
+
+
 def held_cross(world, reference=None):
     """[(head, tail, n_x, n_y)] for every across-block comparison, excluding
     any pair the reference world states as a fact.  `n_x` and `n_y` are the

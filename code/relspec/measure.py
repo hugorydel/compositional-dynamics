@@ -94,12 +94,20 @@ def law_plan(world: World, held, candidates=None):
 
 
 def cross_plan(world: World, pairs, name="cross", step="x", baseline=None,
-               candidates=None):
+               candidates=None, freed=None):
     """Score held-out across-block comparisons.  `pairs` is
     `[(head, tail, n_x, n_y)]`, as `worlds.held_cross` returns.
 
     Candidates default to the destination block only, for the same reason law
     queries are ranked within their own lattice.
+
+    `freed` is the coefficient `n_b - n_a` of each pair on the null direction
+    that the linking fact removes, from `worlds.freed_coefficients`.  Given it,
+    the offset error is split into the part lying along that direction and the
+    rest.  Only the first part is undetermined before the fact arrives, so it
+    is the quantity the experiment is about; the rest is ordinary learning that
+    happens in both arms.  Reporting the total instead lets a control that is
+    converging perfectly well look like it is getting worse.
 
     `baseline` is the per-pair offset error of the minimum-norm solution.  The
     geometric measure is divided by it, so an arm in which the comparison stays
@@ -125,7 +133,8 @@ def cross_plan(world: World, pairs, name="cross", step="x", baseline=None,
         gt=np.array([gt[b] - gt[a] for a, b, _, _ in pairs]),
         x=ti["x"], y=ti["y"],
         scale=float(np.linalg.norm(world.meta["gt_rel"][step])),
-        baseline=base, normalised=baseline is not None)
+        baseline=base, normalised=baseline is not None,
+        freed=None if freed is None else np.asarray(freed, float))
 
 
 def apply_plan(plan, E):
@@ -158,8 +167,33 @@ def apply_plan(plan, E):
                              axis=1) / plan["scale"] / plan["baseline"]
         ret[n], hits[n], errs[n] = 100.0 * hit.mean(), hit, err
         rank[n] = 100.0 * float(np.mean(1.0 - r / max(plan["n_cand"] - 1, 1)))
-        geo[n] = float(np.exp(np.log(np.maximum(err, 1e-16)).mean()))
+        c = plan.get("freed")
+        if c is None:
+            geo[n] = float(np.exp(np.log(np.maximum(err, 1e-16)).mean()))
+        else:
+            # least-squares share of the error lying along the freed direction
+            raw = ((E[plan["b"]] - E[plan["a"]]) - plan["gt"]) / plan["scale"]
+            v = (c @ raw) / max(float(c @ c), 1e-30)
+            along = np.linalg.norm(np.outer(c, v), axis=1)
+            geo[n] = float(np.mean(along / plan["baseline"]))
     return ret, geo, hits, errs, rank
+
+
+def resolved(epochs, hits):
+    """Percentage of items STABLY resolved by each epoch, which is monotone.
+
+    An item counts from the first evaluation after its last failure, the same
+    persistence idea the emergence criterion uses.  Instantaneous top-1
+    accuracy is not the right object for a panel about emergence: single items
+    cross and recross a nearest-neighbour boundary, so the curve steps and
+    reverses even while learning is monotone underneath.
+
+    Retrospective by construction, since an item's status depends on whether it
+    fails later, so the curve is defined relative to the run's own budget.
+    """
+    t = unlocked(epochs, hits)
+    ep = np.asarray(epochs, float)
+    return 100.0 * np.array([(t <= e).mean() for e in ep])
 
 
 def unlocked(epochs, hits):
