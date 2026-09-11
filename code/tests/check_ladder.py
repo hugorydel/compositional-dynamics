@@ -5,6 +5,7 @@ exact only in continuous time.  This integrates the whole world once and
 reports what the figure will actually show.
 """
 
+import _boot  # noqa: F401
 import _paths  # noqa: F401
 import numpy as np
 from relspec import System, models, theory, worlds  # noqa: E402

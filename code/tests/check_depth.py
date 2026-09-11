@@ -13,6 +13,7 @@ the emergence times, their spread, and whether the depth-1 ordering survives.
 import sys
 import time
 
+import _boot  # noqa: F401
 import _paths  # noqa: F401
 import numpy as np
 from relspec import System, models, theory, worlds

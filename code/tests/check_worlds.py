@@ -1,5 +1,6 @@
 """Structural check on the three experiment worlds.  Run before any training."""
 
+import _boot  # noqa: F401
 import _paths  # noqa: F401
 import numpy as np
 from relspec import System  # noqa: E402

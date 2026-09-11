@@ -6,6 +6,7 @@ while the geometry is still wrong, which is the failure the criterion exists to
 catch.
 """
 
+import _boot  # noqa: F401
 import _paths  # noqa: F401
 import numpy as np
 from relspec import worlds  # noqa: E402

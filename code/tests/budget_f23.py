@@ -16,6 +16,7 @@ available long before the geometry is metrically right.
 
 import time
 
+import _boot  # noqa: F401
 import _paths  # noqa: F401
 import numpy as np
 from relspec import System, models, theory, worlds

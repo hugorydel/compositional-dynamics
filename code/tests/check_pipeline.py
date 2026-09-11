@@ -6,6 +6,7 @@ experiment.  If the plan threading through `train` or `theory.predict` ever
 breaks, this fails loudly instead of silently recording nothing.
 """
 
+import _boot  # noqa: F401
 import _paths  # noqa: F401
 import numpy as np
 from relspec import System, models, theory, train, worlds  # noqa: E402

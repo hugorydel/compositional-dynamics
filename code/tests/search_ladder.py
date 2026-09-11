@@ -54,6 +54,7 @@ the cheap estimate is not exact.
 import json
 import time
 
+import _boot  # noqa: F401
 import _paths  # noqa: F401
 import numpy as np
 from _paths import result
