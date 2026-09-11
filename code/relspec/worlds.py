@@ -354,20 +354,36 @@ LADDER = (
 )
 Z_FRAC = 0.25
 
-# Experiment 1, settled.  Measured on the ladder above at `lr_target = 0.03`,
-# by integrating the assembled world at each depth.  All sixteen laws emerge at
-# every depth; the budgets leave headroom above the slowest.
+# Experiment 1.  One budget at every depth, so a depth effect cannot be
+# confounded with a budget difference, and wide enough that the figure window
+# can be moved without recollecting.  The figure shows 0 to 5,000; the runs go
+# to 10,000 so the tail is available.
 #
-#   depth 1   2,800 to 19,500 epochs   spread 7.0x
-#   depth 2     800 to  1,750 epochs   spread 2.2x
-#   depth 3   1,100 to  1,450 epochs   spread 1.3x
-#
-# Depths 2 and 3 emerge EARLIER in epochs than depth 1, so all three fit one
-# shared log axis.  The between-law spread compresses with depth, and it does
-# so toward the same floor on an independently searched ladder, so that is a
-# property of the dynamics rather than of this particular ladder.
-F1_EPOCHS = {1: 30000, 2: 5000, 3: 5000}
-F1_EVERY = {1: 100, 2: 25, 3: 25}
+# Earlier measurements on this ladder, taken with a SHARED base relation per
+# rung, had the sixteen laws spanning 2,800 to 19,500 epochs at depth 1, 800 to
+# 1,750 at depth 2 and 1,100 to 1,450 at depth 3.  Those numbers are a guide
+# only: the base is now private per law (see `emergence_world`), so they are
+# re-measured rather than assumed.  A law slower than the budget is recorded as
+# not emerged rather than silently dropped.
+F1_EPOCHS = {1: 10000, 2: 10000, 3: 10000}
+F1_EVERY = {1: 25, 2: 25, 3: 25}
+
+# The three laws Figure 1 draws, chosen from the LADDER DESIGN and never from
+# observed times.  Ranking the sixteen by measured emergence and drawing the
+# fastest, median and slowest selects on the dependent variable: the identity
+# of the drawn law then changes with the world, and averaging across worlds
+# mixes laws that are not the same condition.  Repetition is the ladder's
+# evidence axis, so rungs are ranked by rep_x + rep_y and the strongest, median
+# and weakest are taken.  Copy 0 of each; the copies are independent draws of
+# one design, not a pair to be pooled.
+def _drawn_laws(ladder=LADDER):
+    order = sorted(range(len(ladder)),
+                   key=lambda b: -(ladder[b]["rep_x"] + ladder[b]["rep_y"]))
+    return tuple("L%d_0" % order[i]
+                 for i in (0, len(order) // 2, len(order) - 1))
+
+
+F1_LAWS = _drawn_laws()
 
 # Experiments 2 and 3, settled.  Both are staged: one fact is inserted at the
 # switch and training continues on the same weights.  Plot them against epochs
@@ -464,9 +480,20 @@ F3_AFTER = {1: 100000, 2: 20000, 3: 10000}
 F3_EVERY = {1: 250, 2: 50, 3: 25}
 
 
-def emergence_world(seed=0, ladder=LADDER, z_frac=Z_FRAC, d=D, share_base=True):
+def emergence_world(seed=0, ladder=LADDER, z_frac=Z_FRAC, d=D, share_base=False):
     """F1.  Two laws per ladder rung, each on its own lattice, with `z_frac` of
-    the diagonals trained on and the rest withheld as the generalisation set."""
+    the diagonals trained on and the rest withheld as the generalisation set.
+
+    `share_base=True` gives a rung's two laws ONE base relation between them.
+    That was the manipulation of an earlier shared-token experiment, and it
+    leaves the pair coupled: their sub-blocks of the Gram matrix overlap (peak
+    0.018 to 0.066 across the rungs) where laws from different rungs are
+    exactly orthogonal.  Coupled laws are not sixteen independent conditions,
+    and a rung's two laws are not two chances to observe one design, so the
+    default here is a private base per law.  The switch costs eight extra
+    relation tokens and changes neither the fact count nor the largest
+    eigenvalue, so the learning rate is untouched.
+    """
     specs = []
     for bi, c in enumerate(ladder):
         for k in range(2):

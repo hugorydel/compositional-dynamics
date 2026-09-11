@@ -12,10 +12,19 @@ emergence: with a modest number of held-out items, single items cross and
 recross a nearest-neighbour boundary, so the curve steps and reverses while
 learning is monotone underneath.
 
-Four ladder rungs are drawn rather than all sixteen laws.  Sixteen curves plus
-sixteen predictions cannot be read, and at depth the laws compress into one
-bundle.  The other twelve appear in panel g, predicted against observed
-emergence, which is where the full set carries information.
+Three laws are drawn rather than all sixteen.  Sixteen curves plus sixteen
+predictions cannot be read, and at depth the laws compress into one bundle.
+WHICH three is fixed by the ladder design in `worlds.F1_LAWS` and never by the
+measured times: ranking the sixteen by observed emergence and drawing the
+fastest, median and slowest selects on the dependent variable, so the drawn
+law changes identity from world to world and the average across worlds mixes
+conditions.  The remaining thirteen stay in every record and belong in a
+predicted-against-observed panel, where the full set carries information.
+
+Each line is the mean over worlds and the band is the range the worlds
+actually covered.  A mean alone reads as one crisp run; the spread is a
+property of the environment, since every world redraws the relation vectors,
+the lattice origins and which composites are withheld.
 """
 
 import glob
@@ -26,13 +35,14 @@ import _paths  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 from _paths import RESULTS, figure
+from relspec import worlds
 from relspec.config import DEFAULT as S
 from relspec.measure import detect_emergence, resolved
 from style import DARK, panel
 
 DEPTHS = (1, 2, 3)
 PRED = dict(color=DARK, lw=0.8, ls=(0, (2.2, 2.0)), zorder=6)
-NLAW = 3               # Law A, B, C
+LAWS = worlds.F1_LAWS  # Law A, B, C -- fixed by design, see worlds.F1_LAWS
 LAW_COLOURS = ("#1b6ca8", "#b8860b", "#c0392b")  # matches F2/F3
 XLIM = (0, 5000)       # standardised across all three figures
 XTICKS = ([0, 1000, 2000, 3000, 4000, 5000],
@@ -77,12 +87,21 @@ def stack(recs, src, key, law, ep):
     return np.array([r[src][key][law] for r in recs], float)
 
 
-def draw(ax, ep, V, **kw):
-    """Mean across worlds."""
+def draw(ax, ep, V, band=True, **kw):
+    """Mean across worlds, over the range the worlds actually covered.
+
+    The envelope is the observed minimum and maximum rather than an interval
+    built on a distributional assumption, which a handful of worlds cannot
+    support.  It is drawn for the network only; adding it to the prediction as
+    well would put four overlapping fills in every panel.
+    """
+    if band and len(V) > 1:
+        ax.fill_between(ep, V.min(axis=0), V.max(axis=0),
+                        color=kw.get("color", DARK), alpha=0.16, lw=0, zorder=2)
     ax.plot(ep, V.mean(axis=0), **kw)
 
 
-def main(worlds=None, out="fig1_emergence.png"):
+def main(worlds=None, out="fig1_emergence.png", laws=None):
     fig, axes = plt.subplots(2, 3, figsize=(9.8, 5.6))
     fig.subplots_adjust(wspace=0.14, hspace=0.44)
     cols = LAW_COLOURS
@@ -96,12 +115,7 @@ def main(worlds=None, out="fig1_emergence.png"):
         recs = [json.load(open(f)) for f in files]
         ep = np.array(recs[0]["net"]["epochs"], float)
         lrt = recs[0]["lr_target"]
-        # order by MEAN emergence across worlds, not world 0's alone, so the
-        # three drawn laws do not change identity when a world is added
-        em = [emergence(ep, r["net"]) for r in recs]
-        order = sorted(em[0], key=lambda k: np.mean([e[k] for e in em]))
-        names = list(order)
-        pick = [names[int(round(v))] for v in np.linspace(0, len(names) - 1, NLAW)]
+        pick = laws or LAWS
 
         for row, key, ylab in ((0, "resolved", YLAB["top"]),
                                (1, "geometric", YLAB["bot"])):
@@ -109,7 +123,8 @@ def main(worlds=None, out="fig1_emergence.png"):
             for k, law in enumerate(pick):
                 draw(ax, ep, stack(recs, "net", key, law, ep),
                      color=cols[k], lw=1.7, zorder=3)
-                draw(ax, ep, stack(recs, "pred", key, law, ep), **PRED)
+                draw(ax, ep, stack(recs, "pred", key, law, ep),
+                     band=False, **PRED)
             ax.set_xlim(*XLIM)
             ax.set_xticks(XTICKS[0])
             ax.set_xticklabels(XTICKS[1])
@@ -132,7 +147,7 @@ def main(worlds=None, out="fig1_emergence.png"):
             panel(ax, "abcdef"[row * 3 + col],
                   dx=-0.22 if col == 0 else -0.08, dy=1.16)
 
-    for k, nm in enumerate("ABC"[:NLAW]):
+    for k, nm in enumerate("ABC"[:len(laws or LAWS)]):
         axes[0][0].plot([], [], color=cols[k], lw=1.7, label="Law %s" % nm)
     axes[0][0].plot([], [], label="Prediction (no fitted parameters)", **PRED)
     h, l = axes[0][0].get_legend_handles_labels()
@@ -150,5 +165,9 @@ if __name__ == "__main__":
     ap.add_argument("--worlds", type=int, nargs="+", default=None,
                     help="world seeds to include; default is every cell found")
     ap.add_argument("--out", default="fig1_emergence.png")
+    ap.add_argument("--laws", nargs=3, default=None, metavar="LAW",
+                    help="the three laws to draw, e.g. L6_0 L2_0 L0_0; "
+                         "default is worlds.F1_LAWS.  Every cell stores all "
+                         "sixteen, so changing this recomputes nothing")
     ns = ap.parse_args()
-    main(ns.worlds, ns.out)
+    main(ns.worlds, ns.out, ns.laws)

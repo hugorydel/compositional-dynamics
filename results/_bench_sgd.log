@@ -1,0 +1,4 @@
+F2 world, seed 0, 400 epochs of per-fact SGD
+  N=1  rows 112 (40 single-token)   max |diff| 0.000e+00 BIT-IDENTICAL   old  0.52s  new  0.41s  1.28x
+  N=2  rows 112 (40 single-token)   max |diff| 0.000e+00 BIT-IDENTICAL   old  0.75s  new  0.68s  1.10x
+  N=3  rows 112 (40 single-token)   max |diff| 0.000e+00 BIT-IDENTICAL   old  1.25s  new  1.22s  1.02x

@@ -54,10 +54,26 @@ def build_matrices(world: World, facts=None, anchors=None, anchor_weight=1.0):
     return rows, targets
 
 
-def sparse_rows(A):
-    """Per-row (nonzero indices, values), so per-fact SGD never touches a dense
-    P-vector.  Each row has at most three nonzeros."""
-    return [(np.nonzero(A[i])[0], A[i][np.nonzero(A[i])[0]]) for i in range(A.shape[0])]
+def sparse_rows(A, C):
+    """Everything one constraint row needs for an SGD update, precomputed.
+
+    `(nonzero indices, values, values as a column, target row, lone index)`, so
+    per-fact SGD never touches a dense P-vector.  Each row has at most three
+    nonzeros.  The inner loop runs once per row per epoch, 260 million times
+    over Figure 2's depth-1 cells, so anything that can be hoisted out of it
+    costs more there than the arithmetic it feeds: the column view would be a
+    reshape per update, and the target row an index per update.
+    """
+    out = []
+    for i in range(A.shape[0]):
+        nz = np.nonzero(A[i])[0]
+        v = A[i][nz]
+        # `j` is the row's single token index when it has only one, else None.
+        # Anchor rows are exactly that case and are a third of every world, and
+        # a scalar index is much cheaper than a one-element fancy index.
+        j = int(nz[0]) if len(nz) == 1 else None
+        out.append((nz, v, v[:, None], C[i], j))
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -105,7 +121,7 @@ class System:
     def sparse(self):
         cached = getattr(self, "_sparse", None)
         if cached is None:
-            cached = sparse_rows(self.A)
+            cached = sparse_rows(self.A, self.C)
             self._sparse = cached
         return cached
 

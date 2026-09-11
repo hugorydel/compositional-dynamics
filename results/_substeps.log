@@ -1,0 +1,44 @@
+post-switch prediction, seed 0.  reference is the highest count
+
+  F2  N=2  2000 then 4000 epochs
+     substeps   2    2.40s  max |dgeo| 2.50e-08  max rel 1.92e-08  max |dretrieval| 0.000%
+     substeps   4    4.38s  max |dgeo| 1.51e-09  max rel 1.16e-09  max |dretrieval| 0.000%
+     substeps   8    8.75s  max |dgeo| 9.22e-11  max rel 7.08e-11  max |dretrieval| 0.000%
+     substeps  16   16.86s  max |dgeo| 5.38e-12  max rel 4.13e-12  max |dretrieval| 0.000%
+     substeps  32   33.46s  max |dgeo| 0.00e+00  max rel 0.00e+00  max |dretrieval| 0.000%   <- reference
+
+  F2  N=3  1000 then 2000 epochs
+     substeps   4    2.70s  max |dgeo| 1.43e-08  max rel 8.91e-09  max |dretrieval| 0.000%
+     substeps   8    5.36s  max |dgeo| 8.63e-10  max rel 5.38e-10  max |dretrieval| 0.000%
+     substeps  16   10.40s  max |dgeo| 5.28e-11  max rel 3.30e-11  max |dretrieval| 0.000%
+     substeps  32   22.41s  max |dgeo| 3.08e-12  max rel 1.92e-12  max |dretrieval| 0.000%
+     substeps  64   44.86s  max |dgeo| 0.00e+00  max rel 0.00e+00  max |dretrieval| 0.000%   <- reference
+
+  F3  N=2  2000 then 4000 epochs
+     substeps   2    1.07s  max |dgeo| 3.59e-07  max rel 1.18e-07  max |dretrieval| 0.000%
+     substeps   4    2.00s  max |dgeo| 2.11e-08  max rel 6.92e-09  max |dretrieval| 0.000%
+     substeps   8    4.14s  max |dgeo| 1.28e-09  max rel 4.18e-10  max |dretrieval| 0.000%
+     substeps  16    8.67s  max |dgeo| 7.40e-11  max rel 2.42e-11  max |dretrieval| 0.000%
+     substeps  32   14.84s  max |dgeo| 0.00e+00  max rel 0.00e+00  max |dretrieval| 0.000%   <- reference
+
+  F3  N=3  1000 then 2000 epochs
+     substeps   4    1.41s  max |dgeo| 7.43e-08  max rel 2.13e-08  max |dretrieval| 0.000%
+     substeps   8    2.73s  max |dgeo| 4.34e-09  max rel 1.25e-09  max |dretrieval| 0.000%
+     substeps  16    5.56s  max |dgeo| 2.62e-10  max rel 7.50e-11  max |dretrieval| 0.000%
+     substeps  32   10.87s  max |dgeo| 1.51e-11  max rel 4.33e-12  max |dretrieval| 0.000%
+     substeps  64   21.67s  max |dgeo| 0.00e+00  max rel 0.00e+00  max |dretrieval| 0.000%   <- reference
+post-switch prediction, seed 0.  reference is the highest count
+
+  F1  N=2  1500 then 0 epochs
+     substeps   2    4.21s  max |dgeo| 3.05e-12  max rel 2.28e-12  max |dretrieval| 0.000%
+     substeps   4    6.84s  max |dgeo| 1.99e-13  max rel 1.41e-13  max |dretrieval| 0.000%
+     substeps   8    9.47s  max |dgeo| 2.71e-14  max rel 1.29e-14  max |dretrieval| 0.000%
+     substeps  16   16.62s  max |dgeo| 2.31e-14  max rel 8.33e-15  max |dretrieval| 0.000%
+     substeps  32   29.21s  max |dgeo| 0.00e+00  max rel 0.00e+00  max |dretrieval| 0.000%   <- reference
+
+  F1  N=3  1000 then 0 epochs
+     substeps   4    5.22s  max |dgeo| 3.92e-11  max rel 1.16e-11  max |dretrieval| 0.000%
+     substeps   8    7.17s  max |dgeo| 2.48e-12  max rel 7.37e-13  max |dretrieval| 0.000%
+     substeps  16   12.50s  max |dgeo| 2.45e-13  max rel 7.28e-14  max |dretrieval| 0.000%
+     substeps  32   23.61s  max |dgeo| 1.15e-13  max rel 3.20e-14  max |dretrieval| 0.000%
+     substeps  64   39.67s  max |dgeo| 0.00e+00  max rel 0.00e+00  max |dretrieval| 0.000%   <- reference

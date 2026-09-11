@@ -22,21 +22,42 @@ the number of worlds.
           python run_experiments.py run 0 --only f1
 """
 
-import copy
-import json
 import os
-import sys
-import time
 
-import _paths  # noqa: F401
-import numpy as np
+# Cells are parallelised across PROCESSES, and each one multiplies many small
+# matrices.  Letting BLAS also spread a single matmul over threads oversubscribes
+# the machine badly, so pin it to one thread before numpy is imported.
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+           "NUMEXPR_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")
+
+import copy  # noqa: E402
+import json  # noqa: E402
+import sys  # noqa: E402
+import time  # noqa: E402
+from multiprocessing import Pool  # noqa: E402
+
+import _paths  # noqa: F401, E402
+import numpy as np  # noqa: E402
 from _paths import RESULTS
-from relspec import System, models, theory, train, worlds
-from relspec.config import override
-from relspec.measure import cross_plan, law_plan
+from relspec import System, models, theory, train, worlds  # noqa: E402
+from relspec.config import override  # noqa: E402
+from relspec.measure import cross_plan, law_plan  # noqa: E402
 
 DEPTHS = (1, 2, 3)
 ORDER_SEED = 7
+NPROC = int(os.environ.get("RELSPEC_NPROC", "12"))
+
+
+def f1_order(seed):
+    """Figure 1 draws a fresh presentation order per world.
+
+    Holding one order fixed across worlds makes the SGD order noise perfectly
+    correlated between them, so a band drawn across worlds understates its own
+    spread.  Figures 2 and 3 keep the fixed order for now: they are staged, and
+    changing it would invalidate their stored cells for no gain.
+    """
+    return 2000 + seed
 
 
 def settings_for(seed, every):
@@ -60,8 +81,33 @@ def save(path, obj):
     os.replace(tmp, path)
 
 
+def stale(r):
+    """Was this cell produced under settings that no longer apply?
+
+    Checking the record FORMAT is not enough.  A budget change, a world change
+    or a new presentation order all leave the format intact while making the
+    stored curve incomparable with a fresh one, and resume would keep it.  The
+    run then silently mixes settings across cells.  Everything compared below
+    is stored in the record itself, so this needs no bookkeeping elsewhere.
+    """
+    fig, depth = r.get("figure"), r.get("depth")
+    if fig == "f1":
+        return (r.get("epochs_max") != worlds.F1_EPOCHS[depth]
+                or r.get("order_seed") != f1_order(r.get("seed")))
+    if fig == "f2":
+        return (r.get("t_switch") != worlds.F2_SWITCH[depth]
+                or r.get("epochs_max") != worlds.F2_SWITCH[depth]
+                + worlds.F2_AFTER[depth])
+    if fig == "f3":
+        return (r.get("t_switch") != worlds.F3_SWITCH[depth]
+                or r.get("epochs_max") != worlds.F3_SWITCH[depth]
+                + worlds.F3_AFTER[depth])
+    return True
+
+
 def usable(path):
-    """A cell counts as done only if it carries everything the analysis needs.
+    """A cell counts as done only if it carries everything the analysis needs
+    AND was produced under the settings in force now.
 
     Resuming on the presence of a file alone silently accepts cells written
     under an older record format, which is how a run once produced Figure 1
@@ -76,7 +122,7 @@ def usable(path):
     except (ValueError, OSError):
         return False
     d = r["arms"][sorted(r["arms"])[0]]["net"] if "arms" in r else r.get("net", {})
-    return all(k in d for k in REQUIRED)
+    return all(k in d for k in REQUIRED) and not stale(r)
 
 
 def series(traj, want_items=True):
@@ -120,13 +166,14 @@ def run_f1(seed, depth):
     s = System.build(w, settings=S)
     plan = law_plan(w, worlds.held_composites(w))
     lr = s.lr(depth, settings=S)
+    order = f1_order(seed)
     obs = train.train(models.make_model(w, depth, S), s, lr, ep, S,
-                      order_seed=ORDER_SEED, eval_every=S.eval_every, plan=plan)
+                      order_seed=order, eval_every=S.eval_every, plan=plan)
     pre, _ = theory.predict(s, depth, lr, ep, models.make_model(w, depth, S),
                             settings=S, eval_every=S.eval_every, plan=plan)
     return dict(figure="f1", seed=seed, depth=depth, epochs_max=ep,
                 lr_target=S.lr_target, init_seed=S.init_seed,
-                order_seed=ORDER_SEED, net=series(obs), pred=series(pre))
+                order_seed=order, net=series(obs), pred=series(pre))
 
 
 # --------------------------------------------------------------------------- #
@@ -235,13 +282,41 @@ def cells(seeds, only=None):
                 yield ("f3", seed, depth, None)
 
 
+def one(cell):
+    """Run one cell and write it, or skip it if it is already usable.
+
+    Module level and taking a single picklable argument, because Windows starts
+    pool workers with spawn: the worker re-imports this module and calls this
+    function by name, so a closure or a bound method would not survive.
+    """
+    fig, seed, depth, arm = cell
+    p = cell_path(fig, seed, depth, arm)
+    tag = "%-4s w%02d N=%d %-2s" % (fig, seed, depth, arm or "")
+    if usable(p):
+        return ("skip", tag, 0.0)
+    t0 = time.time()
+    if fig == "f1":
+        rec = run_f1(seed, depth)
+    elif fig == "f2":
+        rec = run_f2(seed, depth, arm)
+    else:
+        rec = run_f3(seed, depth)
+    save(p, rec)
+    return ("wrote", tag, time.time() - t0)
+
+
 def main():
     args = sys.argv[1:]
     mode = args[0] if args else "plan"
-    only = None
-    if "--only" in args:
-        only = args[args.index("--only") + 1]
-        args = args[: args.index("--only")]
+    only, nproc = None, NPROC
+    for flag in ("--only", "--nproc"):
+        if flag in args:
+            v = args[args.index(flag) + 1]
+            if flag == "--only":
+                only = v
+            else:
+                nproc = int(v)
+            args = args[: args.index(flag)] + args[args.index(flag) + 2:]
     seeds = [int(a) for a in args[1:]] or [0]
 
     todo = list(cells(seeds, only))
@@ -255,24 +330,25 @@ def main():
         print("%d of %d cells to run" % (n, len(todo)))
         return
 
+    todo = [c for c in todo if not usable(cell_path(*c))]
     t_all = time.time()
-    for fig, seed, depth, arm in todo:
-        p = cell_path(fig, seed, depth, arm)
-        if usable(p):
-            print("  skip %-4s w%02d N=%d %s" % (fig, seed, depth, arm or ""),
-                  flush=True)
-            continue
-        t0 = time.time()
-        if fig == "f1":
-            rec = run_f1(seed, depth)
-        elif fig == "f2":
-            rec = run_f2(seed, depth, arm)
-        else:
-            rec = run_f3(seed, depth)
-        save(p, rec)
-        print("  wrote %-4s w%02d N=%d %-2s (%.0fs)"
-              % (fig, seed, depth, arm or "", time.time() - t0), flush=True)
-    print("all cells done in %.1f min" % ((time.time() - t_all) / 60.0))
+    nproc = max(1, min(nproc, len(todo)))
+    print("%d cells on %d process%s"
+          % (len(todo), nproc, "" if nproc == 1 else "es"), flush=True)
+
+    if nproc == 1:
+        results = [one(c) for c in todo]
+        for what, tag, dt in results:
+            print("  %s %s (%.0fs)" % (what, tag, dt), flush=True)
+    else:
+        # imap_unordered so a long cell does not hold back the reporting of
+        # short ones; ordering of the output carries no meaning anyway
+        with Pool(nproc) as pool:
+            for what, tag, dt in pool.imap_unordered(one, todo):
+                print("  %s %s (%.0fs)" % (what, tag, dt), flush=True)
+
+    wall = time.time() - t_all
+    print("all cells done in %.1f min" % (wall / 60.0))
 
 
 if __name__ == "__main__":

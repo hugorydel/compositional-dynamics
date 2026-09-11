@@ -77,9 +77,30 @@ def ode_rhs(Ws, M, B):
     rate, 32, 128 and 512 substeps agree on the geometric error to four decimal
     places across the whole window.  Measured by tests/check_gap3.py.
     """
-    G = M @ embed(Ws) - B
-    pre, suf = products(Ws)
-    return [-(prefix_T_dot(pre[k], G) @ suf[k].T) for k in range(len(Ws))]
+    N = len(Ws)
+    if N == 1:
+        return [-(M @ Ws[0] - B)]
+    # suffix products, with the trailing identity left implicit.  Building it
+    # and multiplying the last layer's gradient by it is a d x d matmul and an
+    # allocation per call for no effect, and the old loop also formed
+    # W_0 (W_1..W_{N-1}) only to discard it.
+    suf = [None] * N
+    s = None
+    for k in range(N - 2, -1, -1):
+        s = Ws[k + 1] if s is None else Ws[k + 1] @ s
+        suf[k] = s
+    E = Ws[0] @ suf[0]                  # == embed(Ws), without a second pass
+    G = M @ E - B
+    out = [-(G @ suf[0].T)]
+    # prefix_k^T G = W_{k-1}^T ... W_0^T G, so carrying the running product
+    # never forms a prefix.  The old form built W_0 W_1 ... explicitly, which
+    # costs a P-sized matmul per layer.
+    T = Ws[0].T @ G
+    for k in range(1, N):
+        out.append(-(T if suf[k] is None else T @ suf[k].T))
+        if k + 1 < N:
+            T = Ws[k].T @ T
+    return out
 
 
 def _rk4_step(Ws, M, B, h):

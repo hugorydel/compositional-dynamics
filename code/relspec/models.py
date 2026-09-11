@@ -30,10 +30,26 @@ class ShallowModel:
         return self.E
 
     def sgd_epoch(self, sparse, C, lr, rng):
+        """One pass of per-fact SGD.
+
+        `np.outer` is not used, and the row block is gathered once rather than
+        twice.  Both are pure overhead: `np.outer` is a Python wrapper that
+        calls `asarray` and `ravel` twice before doing the multiply this does
+        directly, and `E[nz] -= X` gathers a second time after the residual
+        line already did.  At depth 1 this loop is 98 per cent of a cell's
+        runtime, so the wrappers dominate the arithmetic.  Results are
+        bit-identical: the operations and their order are unchanged.
+        """
+        E = self.E
         for i in rng.permutation(len(sparse)):
-            nz, vals = sparse[i]
-            resid = vals @ self.E[nz] - C[i]
-            self.E[nz] -= lr * np.outer(vals, resid)
+            nz, vals, col, c, j = sparse[i]
+            if j is not None:            # anchor row: one token, no gather
+                r = E[j]
+                E[j] = r - lr * (vals[0] * (vals[0] * r - c))
+                continue
+            R = E[nz]
+            resid = vals @ R - c
+            E[nz] = R - lr * (col * resid)
 
     def fullbatch_step(self, A, C, lr):
         self.E -= lr * (A.T @ (A @ self.E - C))
@@ -75,25 +91,25 @@ class DeepModel:
         if N == 2:
             W0, W1 = W
             for i in rng.permutation(len(sparse)):
-                nz, av = sparse[i]
+                nz, av, col, c, _ = sparse[i]
                 R = W0[nz]
-                resid = av @ (R @ W1) - C[i]
-                G = np.outer(av, resid)
+                resid = av @ (R @ W1) - c
+                G = col * resid
                 g0 = G @ W1.T
                 g1 = R.T @ G
-                W0[nz] -= lr * g0
+                W0[nz] = R - lr * g0
                 W1 -= lr * g1
             return
         for i in rng.permutation(len(sparse)):
-            nz, av = sparse[i]
+            nz, av, col, c, _ = sparse[i]
             suf = [None] * N              # suf[N-1] stays None: the identity
             s = None
             for k in range(N - 2, -1, -1):
                 s = W[k + 1] if s is None else W[k + 1] @ s
                 suf[k] = s
             R = W[0][nz]
-            resid = av @ (R @ suf[0]) - C[i]
-            G = np.outer(av, resid)
+            resid = av @ (R @ suf[0]) - c
+            G = col * resid
             grads = [G @ suf[0].T]
             pre = R
             for k in range(1, N):

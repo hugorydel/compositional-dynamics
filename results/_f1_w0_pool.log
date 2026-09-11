@@ -1,0 +1,5 @@
+3 cells on 3 processes
+  wrote f1   w00 N=1    (230s)
+  wrote f1   w00 N=2    (439s)
+  wrote f1   w00 N=3    (758s)
+all cells done in 12.6 min

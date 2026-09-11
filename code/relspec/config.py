@@ -51,8 +51,23 @@ class Settings:
     # ---- deep mean-dynamics integration ---------------------------------- #
     ode_method: str = "rk4"
     ode_substeps: Mapping[int, int] = field(
-        default_factory=lambda: {1: 1, 2: 8, 3: 32, 4: 32, 5: 32}
+        default_factory=lambda: {1: 1, 2: 4, 3: 8, 4: 8, 5: 8}
     )
+    # 4 and 8, not 8 and 32.  RK4 is fourth order and the measured error falls
+    # by a factor of ~16 per doubling, exactly as it should, so the old counts
+    # were resolving the flow far past anything a figure can show.  Swept from
+    # BELOW by check_substeps.py across all three worlds: at these counts the
+    # predicted geometric curve differs from a reference at four times the
+    # count by at most 7e-9 in relative terms, on an axis spanning four
+    # decades, and every retrieval curve is identical to the last item.  The
+    # earlier check only raised the count, which cannot show that a lower one
+    # would do.  The saving is 2x at depth 2 and 4x at depth 3 on what is 72
+    # per cent of a deep cell's runtime.
+    #
+    # The requirement does not vary by world, because `lr` is set so that
+    # `lr * sigma_max` equals `lr_target` everywhere: the stiffest mode has the
+    # same effective rate in every world by construction.  Depth is what
+    # changes it, which is why the counts are keyed by depth.
 
     def init_scale(self, depth: int) -> float:
         return self.init_scale_shallow if depth == 1 else self.init_scale_deep
