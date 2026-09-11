@@ -61,6 +61,26 @@ def _rank_of(pts, Cand, target):
     return (d2 < true[:, None]).sum(1)
 
 
+def _spacing(Cand):
+    """Typical distance between neighbouring candidates, in the LEARNED
+    embedding.  Used as the unit for the geometric measure so that shrinking
+    the whole representation cannot move it, which is what let the behavioural
+    and geometric rows disagree: a rank test is blind to overall scale and a
+    raw distance is not."""
+    d2 = _sqdist(Cand, Cand)
+    np.fill_diagonal(d2, np.inf)
+    return float(np.median(np.sqrt(d2.min(axis=1)))) + 1e-12
+
+
+def _miss(q, Cand, target):
+    """Mean distance from each query to the entity it should have retrieved,
+    in units of candidate spacing.  This is the direct companion to the
+    behavioural test: behaviour asks whether the right entity was picked, this
+    asks how far the predicted point landed from it."""
+    return float(np.mean(np.linalg.norm(q - Cand[target], axis=1)
+                         / _spacing(Cand)))
+
+
 def law_plan(world: World, held, candidates=None):
     """Score the held-out composites of every law.  `held` is
     `{law name: [(head, tail)]}`, as `worlds.held_composites` returns.
@@ -83,8 +103,12 @@ def law_plan(world: World, held, candidates=None):
         pos = {e: k for k, e in enumerate(pool)}
         if any(b not in pos for _, b in pairs):
             raise ValueError("held-out target outside %s's candidate pool" % law.name)
+        cnt = {}
+        for _, b in pairs:
+            cnt[b] = cnt.get(b, 0) + 1
         plan["names"].append(law.name)
         plan[law.name] = dict(
+            chance=max(cnt.values()) / float(len(pairs)),
             cand=np.array([ti[e] for e in pool]),
             n_cand=len(pool),
             a=np.array([ti[a] for a, _ in pairs]),
@@ -93,48 +117,34 @@ def law_plan(world: World, held, candidates=None):
     return plan
 
 
-def cross_plan(world: World, pairs, name="cross", step="x", baseline=None,
-               candidates=None, freed=None):
+def cross_plan(world: World, pairs, name="cross", candidates=None):
     """Score held-out across-block comparisons.  `pairs` is
     `[(head, tail, n_x, n_y)]`, as `worlds.held_cross` returns.
 
     Candidates default to the destination block only, for the same reason law
     queries are ranked within their own lattice.
 
-    `freed` is the coefficient `n_b - n_a` of each pair on the null direction
-    that the linking fact removes, from `worlds.freed_coefficients`.  Given it,
-    the offset error is split into the part lying along that direction and the
-    rest.  Only the first part is undetermined before the fact arrives, so it
-    is the quantity the experiment is about; the rest is ordinary learning that
-    happens in both arms.  Reporting the total instead lets a control that is
-    converging perfectly well look like it is getting worse.
-
-    `baseline` is the per-pair offset error of the minimum-norm solution.  The
-    geometric measure is divided by it, so an arm in which the comparison stays
-    undetermined sits at 1.0 by construction instead of wandering.  Without
-    that normalisation the control's level and slope are pure gauge: they track
-    where ground truth happens to sit relative to the minimum-norm
-    representative, which is a property of the world's construction and not of
-    learning.
+    Candidates default to the destination block only, for the same reason law
+    queries are ranked within their own lattice.  The geometric companion is
+    the distance from the predicted point to the entity it should have
+    retrieved, in units of candidate spacing, so nothing here needs a
+    ground-truth alignment or a reference offset.
     """
-    ti, gt = world.tok_index, world.meta["gt_ent"]
-    dest = sorted(candidates or {e for _, b, _, _ in pairs for e in (b,)})
+    ti = world.tok_index
+    dest = sorted(candidates or {b for _, b, _, _ in pairs})
     pos = {e: k for k, e in enumerate(dest)}
-    base = (np.ones(len(pairs)) if baseline is None
-            else np.maximum(np.asarray(baseline, float), 1e-12))
+    cnt = {}
+    for _, b, _, _ in pairs:
+        cnt[b] = cnt.get(b, 0) + 1
     return dict(
         kind="cross", name=name, names=[name],
+        chance=max(cnt.values()) / float(len(pairs)),
         cand=np.array([ti[e] for e in dest]), n_cand=len(dest),
         a=np.array([ti[a] for a, _, _, _ in pairs]),
-        b=np.array([ti[b] for _, b, _, _ in pairs]),
         bpos=np.array([pos[b] for _, b, _, _ in pairs]),
         nx=np.array([nx for _, _, nx, _ in pairs], float),
         ny=np.array([ny for _, _, _, ny in pairs], float),
-        gt=np.array([gt[b] - gt[a] for a, b, _, _ in pairs]),
-        x=ti["x"], y=ti["y"],
-        scale=float(np.linalg.norm(world.meta["gt_rel"][step])),
-        baseline=base, normalised=baseline is not None,
-        freed=None if freed is None else np.asarray(freed, float))
+        x=ti["x"], y=ti["y"])
 
 
 def apply_plan(plan, E):
@@ -150,36 +160,29 @@ def apply_plan(plan, E):
     if plan["kind"] == "law":
         for n in plan["names"]:
             p = plan[n]
-            z, xy = E[p["z"]], E[p["x"]] + E[p["y"]]
-            r = _rank_of(E[p["a"]] + z[None, :], E[p["cand"]], p["b"])
+            z = E[p["z"]]
+            Cand, q = E[p["cand"]], E[p["a"]] + z[None, :]
+            r = _rank_of(q, Cand, p["b"])
             hit = r == 0
             ret[n], hits[n], errs[n] = 100.0 * hit.mean(), hit, None
             rank[n] = 100.0 * float(np.mean(1.0 - r / max(p["n_cand"] - 1, 1)))
-            geo[n] = float(np.linalg.norm(z - xy)
-                           / (np.linalg.norm(xy) + 1e-12))
+            geo[n] = _miss(q, Cand, p["b"])
     else:
         n = plan["name"]
         pts = (E[plan["a"]] + plan["nx"][:, None] * E[plan["x"]][None, :]
                + plan["ny"][:, None] * E[plan["y"]][None, :])
         r = _rank_of(pts, E[plan["cand"]], plan["bpos"])
         hit = r == 0
-        err = np.linalg.norm((E[plan["b"]] - E[plan["a"]]) - plan["gt"],
-                             axis=1) / plan["scale"] / plan["baseline"]
+        Cand = E[plan["cand"]]
+        sp = _spacing(Cand)
+        err = np.linalg.norm(pts - Cand[plan["bpos"]], axis=1) / sp
         ret[n], hits[n], errs[n] = 100.0 * hit.mean(), hit, err
         rank[n] = 100.0 * float(np.mean(1.0 - r / max(plan["n_cand"] - 1, 1)))
-        c = plan.get("freed")
-        if c is None:
-            geo[n] = float(np.exp(np.log(np.maximum(err, 1e-16)).mean()))
-        else:
-            # least-squares share of the error lying along the freed direction
-            raw = ((E[plan["b"]] - E[plan["a"]]) - plan["gt"]) / plan["scale"]
-            v = (c @ raw) / max(float(c @ c), 1e-30)
-            along = np.linalg.norm(np.outer(c, v), axis=1)
-            geo[n] = float(np.mean(along / plan["baseline"]))
+        geo[n] = float(err.mean())
     return ret, geo, hits, errs, rank
 
 
-def resolved(epochs, hits):
+def resolved(epochs, hits, chance=0.0):
     """Percentage of items STABLY resolved by each epoch, which is monotone.
 
     An item counts from the first evaluation after its last failure, the same
@@ -190,10 +193,20 @@ def resolved(epochs, hits):
 
     Retrospective by construction, since an item's status depends on whether it
     fails later, so the curve is defined relative to the run's own budget.
+
+    `chance` is the accuracy of the best constant answer, and the result is
+    rescaled so that scoring it reads as zero.  Without that, a model whose
+    global offset is still undetermined returns essentially the same entity to
+    every query and is credited with the fraction of items that happen to have
+    that entity as their target.  In the cross-structure world that is nine of
+    eighty, and the control sits at exactly 11.25% for precisely this reason.
     """
     t = unlocked(epochs, hits)
     ep = np.asarray(epochs, float)
-    return 100.0 * np.array([(t <= e).mean() for e in ep])
+    raw = np.array([(t <= e).mean() for e in ep])
+    if chance <= 0:
+        return 100.0 * raw
+    return 100.0 * np.clip((raw - chance) / (1.0 - chance), 0.0, 1.0)
 
 
 def unlocked(epochs, hits):

@@ -366,7 +366,7 @@ Z_FRAC = 0.25
 # shared log axis.  The between-law spread compresses with depth, and it does
 # so toward the same floor on an independently searched ladder, so that is a
 # property of the dynamics rather than of this particular ladder.
-F1_EPOCHS = {1: 30000, 2: 4000, 3: 4000}
+F1_EPOCHS = {1: 30000, 2: 5000, 3: 5000}
 F1_EVERY = {1: 100, 2: 25, 3: 25}
 
 # Experiments 2 and 3, settled.  Both are staged: one fact is inserted at the
@@ -374,47 +374,93 @@ F1_EVERY = {1: 100, 2: 25, 3: 25}
 # SINCE the switch, so the three depth columns align at zero even though their
 # budgets differ by an order of magnitude.
 #
-# The switch is set per depth, at 1.5x the measured point where that depth's
-# pre-intervention control has settled.  Forcing one absolute switch epoch
-# everywhere would make depths 2 and 3 sit flat for thousands of epochs waiting
-# for depth 1, and once the axes are aligned to the switch it buys nothing.
+# The switch is set per depth, and for both figures it is the point after which
+# the PRE-intervention system is quiet, measured on the world the intervention
+# has not yet touched.  Forcing one absolute switch epoch everywhere would make
+# depths 2 and 3 sit flat for thousands of epochs waiting for depth 1, and once
+# the axes are aligned to the switch it buys nothing.
 #
-#   control settles          depth 1   depth 2   depth 3
-#   F2 closed law resolved     6,500     1,000       900
-#   F3 no-link retrieval at 0  5,500       600       650
+# F2, measured by `tests/check_presettle_f2.py` on the unbridged world, both
+# counterbalance arms.  Three conditions have to hold and keep holding: the
+# closed law is retrieved in full, the open law has stopped being retrieved at
+# all, and the open law's geometric error has stopped moving, meaning its
+# relative swing stays under one per cent.
 #
-# After the switch, F2's open law reaches full retrieval in 3,800 / 300 / 140
-# epochs, but its composition error takes 29,300 / 1,720 / 160 to fall below
-# 0.5, and the post-switch budget is set by the slower of the two.
+# The third binds.  Retrieval goes quiet at 29,200 / 3,475 / 1,825, but the
+# geometry keeps drifting until 48,800 / 5,750 / 3,250, taking the later of the
+# two arms at each depth.  Branching in between leaves a control that is still
+# rising: `tests/check_wiggle.py` shows the depth 3 control's miss growing 18 to
+# 38 per cent after a switch at 2,000 and flattening about 1,100 epochs later,
+# at absolute epoch 3,100, which is where the settling measurement puts it.  The
+# rise is not a measurement artefact -- the predecessor's relation-only
+# composition error rises MORE on the same runs, 36 against 18 per cent, because
+# the spacing normalisation partly cancels it.  It is non-identifiability
+# itself: the open law's composite is fitted on detached pairs while its
+# premises are fitted on the triads, so the gap between them grows as both do.
 #
-# Those recovery figures must be measured AT the switch point that will be
-# used.  An earlier pass measured them with the switch at 40,000 and applied
-# them to a switch at 10,000; recovery was three times longer than that
-# predicted, because an earlier switch leaves the shared relational geometry
-# less settled and the open law's composite has further to travel.  The first
-# world 0 run was budgeted from those stale numbers and three of its six arms
-# ended before the composition error crossed 0.5.
+# The second condition is the one an earlier criterion missed.  That criterion
+# put the switch at 1.5x the point where the CLOSED law resolves, giving
+# 10,000 / 1,500 / 1,500, and at those epochs the open law was still being
+# answered correctly 100 / 100 / 73 per cent of the time in the arm where the
+# open block is A.  The open law has rho near 0.26, so about a quarter of its
+# contrast is undetermined; while the representation is still small that quarter
+# is small in absolute terms and the right entity is still the nearest
+# candidate.  Only once the determined part grows to full scale does the deficit
+# exceed half the candidate spacing and the answers go wrong.  The other arm
+# sits at zero throughout, so averaging the two produced a 50 per cent plateau
+# that was the mean of 100 and 0 rather than a level.
+#
+# Neither condition uses an absolute error threshold, deliberately.  Requiring
+# the closed law to land within a fixed fraction of the candidate spacing gives
+# an answer that is a property of the fraction: sweeping it from 0.5 to 0.05
+# moves the crossing from 9,400 to 73,800 at depth 1 and from 875 to 7,525 at
+# depth 3, and at 0.05 it puts depth 3 LATER than depth 2, inverting the depth
+# ordering that holds everywhere else.  That inversion is an artefact of taking
+# the epoch after the last failure on a non-monotone curve: depth 3's closed law
+# dips under 0.10 spacings by epoch 2,000, rises back to 0.13 at 2,500, and only
+# stays under from 6,800.  At a matched epoch depth 3 is three times closer than
+# depth 2, which is the expected ordering.  Retrieval alone needs no constant.
+#
+# F3, measured by `tests/check_presettle.py`: the point at which BOTH lattice
+# copies are internally learnt, meaning every within-block query retrieves the
+# right entity and lands within 0.05 of the candidate spacing, and stays that
+# way.  That happens at 18,600 / 5,800 / 5,000 epochs.  An earlier version used
+# 1.5x the point where the no-link CROSS retrieval reached zero, which was 600
+# and 650 epochs at depths 2 and 3.  That says only that the undetermined
+# comparisons have stopped being accidentally right; it says nothing about
+# whether the determined structure has converged.  Under it the anchored block
+# was still only 85 to 88 per cent correct internally when the bridge arrived,
+# so both branches inherited the same unfinished assembly and their trajectories
+# carried matching bumps.
+#
+# Post-switch budgets must be measured AT the switch that will be used.  An
+# earlier pass measured F2's recovery with the switch at 40,000 and applied it
+# to a switch at 10,000; recovery was three times longer than predicted, because
+# an earlier switch leaves the shared relational geometry less settled and the
+# open law's composite has further to travel.  Three of that run's six arms
+# ended before the composition error crossed 0.5.  F2_AFTER below is therefore
+# set generously rather than tightly, and trimmed only once a run at the current
+# switch has shown where the transition actually lands.
 #
 # F3 is different, and deliberately not sized to a geometric target.  Its two
 # measures dissociate: the eighty comparisons become behaviourally available
-# 3,500 / 700 / 600 epochs after the linking fact, but the offset error takes
-# far longer, and at depth 1 it does not converge at any affordable budget --
-# 310,500 epochs to reach half a step, still 0.32 after 400,000.  Depth 1 is
-# therefore capped at 100,000, where the error has fallen from 3.2 to 1.6.
-# The unconverged depth 1 panel IS the depth result and should not be padded
-# out to hide it.
+# 2,500 / 500 / 375 epochs after the linking fact, but the offset error takes
+# far longer, and at depth 1 it does not converge at any affordable budget.
+# Depth 1 is capped at 100,000, where the error has fallen from 4.1 to 0.12
+# spacings while depths 2 and 3 reach 0.003.  The slow depth 1 panel IS the
+# depth result and should not be padded out to hide it.
 #
-# One caveat for the F3 caption: the no-link control has no geometric plateau.
-# Its offset error drifts upward at every depth, 2.94 to 3.66 at depth 1 over
-# 30,000 epochs and to 3.85 and 4.08 at depths 2 and 3, as the free coordinate
-# creeps toward the minimum-norm solution.  The control line rises; it does not
-# sit flat.
-F2_SWITCH = {1: 10000, 2: 1500, 3: 1500}
-F2_AFTER = {1: 40000, 2: 3000, 3: 1000}
+# One note for the F3 caption: the no-link control has no geometric plateau at
+# its starting level.  It settles near 5.4 spacings at every depth, arriving
+# from below at depth 1 (4.12 to 5.43) and from above at depths 2 and 3 (6.85
+# to 5.46 and 6.27 to 5.42), as the free coordinate creeps toward the
+# minimum-norm solution.  The control line moves before it flattens.
+F2_SWITCH = {1: 50000, 2: 6000, 3: 3500}
+F2_AFTER = {1: 40000, 2: 8000, 3: 4000}
 F2_EVERY = {1: 50, 2: 10, 3: 10}
 
-F3_SWITCH = {1: 8000, 2: 1000, 3: 1000}
-F3_AFTER = {1: 100000, 2: 20000, 3: 8000}
+F3_SWITCH = {1: 20000, 2: 6500, 3: 5500}
+F3_AFTER = {1: 100000, 2: 20000, 3: 10000}
 F3_EVERY = {1: 250, 2: 50, 3: 25}
 
 

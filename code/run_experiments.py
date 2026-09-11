@@ -50,11 +50,33 @@ def cell_path(fig, seed, depth, arm=None):
     return os.path.join(d, name)
 
 
+REQUIRED = ("epochs", "retrieval", "rank", "geometric", "hits")
+
+
 def save(path, obj):
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(obj, f)
     os.replace(tmp, path)
+
+
+def usable(path):
+    """A cell counts as done only if it carries everything the analysis needs.
+
+    Resuming on the presence of a file alone silently accepts cells written
+    under an older record format, which is how a run once produced Figure 1
+    depths 1 and 2 without the per-item hit histories the stable-resolution
+    curve is built from.  A stale cell is treated as missing and recomputed.
+    """
+    if not os.path.exists(path):
+        return False
+    try:
+        with open(path) as f:
+            r = json.load(f)
+    except (ValueError, OSError):
+        return False
+    d = r["arms"][sorted(r["arms"])[0]]["net"] if "arms" in r else r.get("net", {})
+    return all(k in d for k in REQUIRED)
 
 
 def series(traj, want_items=True):
@@ -150,6 +172,12 @@ def run_f2(seed, depth, closed):
                           pred=join(series(ta, False), series(tb, False), t1))
     return dict(figure="f2", seed=seed, depth=depth, closed=closed,
                 open="B" if closed == "A" else "A", t_switch=t1,
+                # accuracy of the best constant answer, per law.  The figure
+                # rescales by it so an undetermined law cannot be credited for
+                # the items whose target happens to be the entity it returns to
+                # everything.  Stored rather than recomputed, because it is a
+                # property of the evaluation set this cell actually used.
+                chance={n: float(plan[n]["chance"]) for n in plan["names"]},
                 epochs_max=t1 + t2, lr_target=S.lr_target,
                 init_seed=S.init_seed, order_seed=ORDER_SEED,
                 rho_before={l.name: float(s0.identifiability(l, S)["rho"])
@@ -168,14 +196,7 @@ def run_f3(seed, depth):
     w1 = worlds.integration_world(seed, link=True)
     s0, s1 = System.build(w0, settings=S), System.build(w1, settings=S)
     pairs = worlds.held_cross(w0, reference=w1)
-    ti, gt = w0.tok_index, w0.meta["gt_ent"]
-    sc = float(np.linalg.norm(w0.meta["gt_rel"]["x"]))
-    Emn = s0.Estar
-    base = np.array([np.linalg.norm((Emn[ti[b]] - Emn[ti[a]])
-                                    - (gt[b] - gt[a])) / sc
-                     for a, b, _, _ in pairs])
-    plan = cross_plan(w1, pairs, baseline=base,
-                      freed=worlds.freed_coefficients(s0, pairs))
+    plan = cross_plan(w1, pairs)
     lr = s0.lr(depth, settings=S)
 
     m = models.make_model(w0, depth, S)
@@ -228,16 +249,16 @@ def main():
         for fig, seed, depth, arm in todo:
             p = cell_path(fig, seed, depth, arm)
             print("  %-4s w%02d N=%d %-4s %s"
-                  % (fig, seed, depth, arm or "", "done" if os.path.exists(p)
-                     else "TO RUN"))
-        n = sum(1 for c in todo if not os.path.exists(cell_path(*c)))
+                  % (fig, seed, depth, arm or "",
+                     "done" if usable(p) else "TO RUN"))
+        n = sum(1 for c in todo if not usable(cell_path(*c)))
         print("%d of %d cells to run" % (n, len(todo)))
         return
 
     t_all = time.time()
     for fig, seed, depth, arm in todo:
         p = cell_path(fig, seed, depth, arm)
-        if os.path.exists(p):
+        if usable(p):
             print("  skip %-4s w%02d N=%d %s" % (fig, seed, depth, arm or ""),
                   flush=True)
             continue

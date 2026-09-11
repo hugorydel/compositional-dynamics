@@ -1,0 +1,7 @@
+  skip f1   w00 N=1 
+  wrote f1   w00 N=2    (203s)
+  wrote f1   w00 N=3    (395s)
+  wrote f1   w01 N=1    (550s)
+  wrote f1   w01 N=2    (179s)
+  wrote f1   w01 N=3    (368s)
+all cells done in 28.3 min

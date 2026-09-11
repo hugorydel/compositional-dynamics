@@ -71,7 +71,11 @@ def ode_rhs(Ws, M, B):
     forming it once turns every substep from a pass over all the facts into one
     small square product.  On the sixteen-law world that is 6554 rows against
     354 columns, a 37-fold reduction in work per substep, and the deep
-    integrator makes 32 substeps per epoch at depth 2 and 128 at depth 3.
+    integrator makes 8 substeps per epoch at depth 2 and 32 at depth 3.
+
+    Those counts are converged: on the Figure 3 world at depth 3 and the locked
+    rate, 32, 128 and 512 substeps agree on the geometric error to four decimal
+    places across the whole window.  Measured by tests/check_gap3.py.
     """
     G = M @ embed(Ws) - B
     pre, suf = products(Ws)

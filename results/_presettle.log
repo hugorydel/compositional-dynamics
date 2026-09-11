@@ -1,0 +1,19 @@
+unlinked world, 40000 epochs.  settled = relative swing under 1% for the rest of the run
+
+  N=1   switch is at 8000
+    within A settles    38200 | at the switch: error    0.109, retrieval 100.0% | at the end: error   0.0238
+    within B settles    38200 | at the switch: error    0.048, retrieval 100.0% | at the end: error   0.0049
+    cross    settles    38200 | at the switch: error    3.313, retrieval  11.2% | at the end: error   4.9090
+    loss     settles    38200 | at the switch 5.029e-02 | at the end 7.407e-03
+
+  N=2   switch is at 1000
+    within A settles    38200 | at the switch: error    0.575, retrieval  87.5% | at the end: error   0.0004
+    within B settles    38200 | at the switch: error    0.345, retrieval 100.0% | at the end: error   0.0003
+    cross    settles    10800 | at the switch: error    3.235, retrieval  10.0% | at the end: error   5.4626
+    loss     settles    38200 | at the switch 1.263e-01 | at the end 1.917e-07
+
+  N=3   switch is at 1000
+    within A settles    38200 | at the switch: error    0.666, retrieval  84.7% | at the end: error   0.0007
+    within B settles    38200 | at the switch: error    0.216, retrieval 100.0% | at the end: error   0.0007
+    cross    settles     6600 | at the switch: error    6.434, retrieval  10.0% | at the end: error   5.4221
+    loss     settles    38200 | at the switch 1.500e-01 | at the end 1.540e-06

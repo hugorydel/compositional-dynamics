@@ -1,0 +1,4 @@
+  skip N=1 at 0.01
+  wrote N=2 at 0.01  (57s)
+  wrote N=3 at 0.01  (235s)
+wrote C:\Users\hugos\Desktop\Research\Abstract Relational Paper\compositional-dynamics\figures\fig3_f3_lr0p01.png

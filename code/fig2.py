@@ -33,17 +33,26 @@ DEPTHS = (1, 2, 3)
 PRED = dict(color=DARK, lw=0.8, ls=(0, (2.2, 2.0)), zorder=6)
 ARMS = (("hold", "#c0392b", "No bridging fact"),
         ("insert", "#1b6ca8", "One bridging fact"))
-XLIM = (2e1, 4e4)
+XLIM = (0, 4000)       # the depth 3 budget, so every column spans its panel;
+XTICKS = ([0, 1000, 2000, 3000, 4000],   # depths 1 and 2 run on to 40k and 8k
+          ["0", "1k", "2k", "3k", "4k"])
+YLAB = {"top": "Compositional Accuracy\n(held-out)",
+        "bot": "Geometric Error"}
 
 
 def after(rec, arm, src, key, law):
     """One arm's post-switch series, with the switch at zero."""
     d = rec["arms"][arm][src]
     ep = np.array(d["epochs"], float) - rec["t_switch"]
-    m = ep > 0
+    m = ep >= 0
     if key == "resolved":
-        v = resolved(np.array(d["epochs"], float),
-                     np.array(d["hits"][law], bool))
+        h = np.array(d["hits"][law], bool)
+        # the record carries the best-constant-answer rate of its own
+        # evaluation set.  The reciprocal of the item count coincides with it
+        # only while every held-out target is distinct, which is a property of
+        # the world rather than something the figure should rely on.
+        v = resolved(np.array(d["epochs"], float), h,
+                     chance=rec["chance"][law])
     else:
         v = np.array(d[key][law], float)
     return ep[m], v[m]
@@ -54,17 +63,19 @@ def main():
     fig.subplots_adjust(wspace=0.14, hspace=0.44)
 
     for col, depth in enumerate(DEPTHS):
-        files = sorted(glob.glob(os.path.join(RESULTS, "f2",
-                                              "w*_d%d_*.json" % depth)))
+        # exactly the two counterbalance arms.  A dose series over `n_bridge`
+        # lives in the same directory and answers a different question, so it
+        # must not be swept up by a wildcard.
+        files = sorted(f for a in ("A", "B")
+                       for f in glob.glob(os.path.join(
+                           RESULTS, "f2", "w*_d%d_%s.json" % (depth, a))))
         if not files:
             continue
         recs = [json.load(open(f)) for f in files]
         lrt = recs[0]["lr_target"]
 
-        for row, key, ylab in (
-                (0, "resolved", "Held-out composites\nstably resolved  (%)"),
-                (1, "geometric", "Composition error\n"
-                                 r"$\|z-(x{+}y)\|\,/\,\|x{+}y\|$")):
+        for row, key, ylab in ((0, "resolved", YLAB["top"]),
+                               (1, "geometric", YLAB["bot"])):
             ax = axes[row][col]
             for arm, c, _ in ARMS:
                 for src, kw in (("net", dict(color=c, lw=1.8, zorder=3)),
@@ -72,8 +83,9 @@ def main():
                     ser = [after(r, arm, src, key, r["open"]) for r in recs]
                     ep = ser[0][0]
                     ax.plot(ep, np.mean([v for _, v in ser], axis=0), **kw)
-            ax.set_xscale("log")
             ax.set_xlim(*XLIM)
+            ax.set_xticks(XTICKS[0])
+            ax.set_xticklabels(XTICKS[1])
             if row == 0:
                 ax.set_ylim(-4, 106)
                 ax.set_yticks([0, 25, 50, 75, 100])
