@@ -29,7 +29,17 @@ from relspec.config import override
 from relspec.models import embed, prefix_T_dot, products
 
 SEED = 0
-EPOCHS = {2: 400, 3: 200}
+# the emergence world is twenty times the size of the other two
+EPOCHS = {"f1": {2: 60, 3: 30}, "f2": {2: 400, 3: 200},
+          "f3": {2: 300, 3: 150}}
+
+
+def world_for(fig):
+    if fig == "f1":
+        return worlds.emergence_world(SEED)
+    if fig == "f2":
+        return worlds.identifiability_world(SEED, K=16, k=4, closed_block="A")
+    return worlds.integration_world(SEED, link=True)
 
 
 def naive_rhs(Ws, M, B):
@@ -59,16 +69,16 @@ def integrate_with(rhs, Ws0, A, C, lr, epochs, every, substeps):
 
 
 def main():
-    want = [int(a) for a in sys.argv[1:]] or [2, 3]
-    print("F2 world, seed %d.  naive = prefix/suffix products rebuilt per call"
-          % SEED)
-    for depth in want:
+    figs = sys.argv[1:] or ["f1", "f2", "f3"]
+    print("seed %d.  naive = prefix/suffix products rebuilt per call" % SEED)
+    for fig in figs:
+        for depth in (2, 3):
         S = override(init_seed=1000 + SEED)
-        w = worlds.identifiability_world(SEED, K=16, k=4, closed_block="A")
+        w = world_for(fig)
         s = System.build(w, settings=S)
         lr = s.lr(depth, settings=S)
         Ws0 = models.make_model(w, depth, S).W
-        ep, sub = EPOCHS[depth], S.substeps(depth)
+        ep, sub = EPOCHS[fig][depth], S.substeps(depth)
         args = (Ws0, s.A, s.C, lr, ep, 10, sub)
 
         out = {}
@@ -79,8 +89,8 @@ def main():
 
         d = float(np.abs(out["naive"] - out["current"]).max())
         scale = float(np.abs(out["naive"]).max())
-        print("  N=%d  %d epochs x %d substeps = %d rhs calls"
-              % (depth, ep, sub, 4 * ep * sub))
+        print("  %s N=%d  %d epochs x %d substeps = %d rhs calls"
+              % (fig.upper(), depth, ep, sub, 4 * ep * sub))
         print("     agreement  max |diff| %.3e against max |E| %.3f  "
               "(relative %.1e)" % (d, scale, d / scale))
         print("     speed      naive %6.2fs   current %6.2fs   %.2fx"

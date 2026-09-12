@@ -89,6 +89,32 @@ def f3(seed, depth, phase):
     return [fit(e[m] - t, v[m], ep[ep >= t] - t, q[ep >= t])]
 
 
+def f2(seed, depth, arm_closed, phase):
+    """The law the bridge makes identifiable, before and after the bridge.
+
+    Figure 2 stages its prediction exactly as Figure 3 does, so if the lag were
+    a property of staging it would appear here too.  The law scored is the OPEN
+    one, whose composite is undetermined until the bridge arrives.
+    """
+    p = os.path.join(RESULTS, "f2",
+                     "w%02d_d%d_%s.json" % (seed, depth, arm_closed))
+    if not os.path.exists(p):
+        return None
+    r = json.load(open(p))
+    d = r["arms"]["hold" if phase == "before" else "insert"]
+    law = r["open"]
+    e = np.array(d["net"]["epochs"], float)
+    ep = np.array(d["pred"]["epochs"], float)
+    v = np.array(d["net"]["geometric"][law], float)
+    q = np.array(d["pred"]["geometric"][law], float)
+    t = r["t_switch"]
+    if phase == "before":
+        m = e <= t
+        return [fit(e[m], v[m], ep[ep <= t], q[ep <= t])]
+    m = e >= t
+    return [fit(e[m] - t, v[m], ep[ep >= t] - t, q[ep >= t])]
+
+
 def show(label, res):
     if not res:
         print("  %-26s no record" % label)
@@ -116,6 +142,16 @@ def main():
                 show("N=%d, one phase" % depth, res)
         if any_:
             print()
+    print("Figure 2, world 0, the law the bridge opens")
+    for depth in DEPTHS:
+        for phase in ("before", "after"):
+            res = []
+            for arm in ("A", "B"):
+                r = f2(0, depth, arm, phase)
+                if r:
+                    res += r
+            show("N=%d, %s the bridge" % (depth, phase), res)
+    print()
     print("Figure 3, world 0")
     for depth in DEPTHS:
         for phase in ("before", "after"):

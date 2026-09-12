@@ -44,9 +44,18 @@ DEPTHS = (1, 2, 3)
 PRED = dict(color=DARK, lw=0.8, ls=(0, (2.2, 2.0)), zorder=6)
 LAWS = worlds.F1_LAWS  # Law A, B, C -- fixed by design, see worlds.F1_LAWS
 LAW_COLOURS = ("#1b6ca8", "#b8860b", "#c0392b")  # matches F2/F3
-XLIM = (0, 5000)       # standardised across all three figures
-XTICKS = ([0, 1000, 2000, 3000, 4000, 5000],
-          ["0", "1k", "2k", "3k", "4k", "5k"])
+BAND = "sem"           # "sem", a (lo, hi) percentile pair, or None for min-max
+# Matches fig3.  What the shading is for decides which of these is right.  A
+# spread band answers "how much do worlds differ", and it does not narrow as
+# worlds are added: with fifty worlds the 10-90 band still covered most of the
+# depth-1 accuracy panel, because a per-world accuracy curve is a step function
+# over 7 to 9 held-out items and the percentiles jump between discrete levels.
+# A standard-error band answers "how well is the plotted curve pinned down",
+# which is the question a curve drawn against a prediction raises, and it
+# narrows with the number of worlds.  The spread belongs in the text, not on a
+# panel whose subject is agreement.
+XLIM = (0, 3000)       # standardised across all three figures
+XTICKS = ([0, 1000, 2000, 3000], ["0", "1k", "2k", "3k"])
 YLAB = {"top": "Compositional Accuracy\n(held-out)",
         "bot": "Geometric Error"}
 
@@ -87,21 +96,57 @@ def stack(recs, src, key, law, ep):
     return np.array([r[src][key][law] for r in recs], float)
 
 
-def draw(ax, ep, V, band=True, **kw):
-    """Mean across worlds, over the range the worlds actually covered.
+def spread(V, key):
+    """Lower and upper edges of the shading, in the space the axis uses.
 
-    The envelope is the observed minimum and maximum rather than an interval
-    built on a distributional assumption, which a handful of worlds cannot
-    support.  It is drawn for the network only; adding it to the prediction as
-    well would put four overlapping fills in every panel.
+    The geometric row is logarithmic, so its error is taken on the logarithms
+    and mapped back.  Doing it linearly would put the band off-centre on the
+    drawn curve.  The behavioural row is a bounded percentage and is clipped.
     """
+    n = len(V)
+    if n < 2:
+        return None
+    if BAND is None:
+        return V.min(0), V.max(0)
+    if BAND != "sem":
+        return (np.percentile(V, BAND[0], axis=0),
+                np.percentile(V, BAND[1], axis=0))
+    W = np.log(np.maximum(V, 1e-12)) if key == "geometric" else V
+    m, se = W.mean(0), W.std(0, ddof=1) / np.sqrt(n)
+    if key == "geometric":
+        return np.exp(m - se), np.exp(m + se)
+    return np.clip(m - se, 0.0, 100.0), np.clip(m + se, 0.0, 100.0)
+
+
+def summarise(V, key):
+    """Across-world centre for one series.
+
+    The geometric row is drawn on a logarithmic axis, where an arithmetic mean
+    is the wrong centre: it is carried by whichever world happens to have the
+    largest error, so worlds that each sit a factor of two above the prediction
+    can average to a curve well under a factor of two.  The geometric mean is
+    the arithmetic mean of the logarithms, which is what the axis shows.  The
+    behavioural row is a percentage on a linear axis and is averaged as one.
+    """
+    if key == "geometric":
+        return np.exp(np.mean(np.log(np.maximum(V, 1e-12)), axis=0))
+    return np.mean(V, axis=0)
+
+
+def draw(ax, ep, V, key, band=True, **kw):
+    """Across-world centre, with the standard-error band for the network only.
+
+    Adding the band to the predictions as well would put six overlapping fills
+    in a panel.
+    """
+    ax.plot(ep, summarise(V, key), **kw)
     if band and len(V) > 1:
-        ax.fill_between(ep, V.min(axis=0), V.max(axis=0),
-                        color=kw.get("color", DARK), alpha=0.16, lw=0, zorder=2)
-    ax.plot(ep, V.mean(axis=0), **kw)
+        lo, hi = spread(V, key)
+        ax.fill_between(ep, lo, hi, color=kw.get("color", DARK), alpha=0.25,
+                        lw=0, zorder=2)
 
 
-def main(worlds=None, out="fig1_emergence.png", laws=None):
+def main(worlds=None, out="fig1_emergence.png", laws=None, band=True):
     fig, axes = plt.subplots(2, 3, figsize=(9.8, 5.6))
     fig.subplots_adjust(wspace=0.14, hspace=0.44)
     cols = LAW_COLOURS
@@ -121,9 +166,9 @@ def main(worlds=None, out="fig1_emergence.png", laws=None):
                                (1, "geometric", YLAB["bot"])):
             ax = axes[row][col]
             for k, law in enumerate(pick):
-                draw(ax, ep, stack(recs, "net", key, law, ep),
-                     color=cols[k], lw=1.7, zorder=3)
-                draw(ax, ep, stack(recs, "pred", key, law, ep),
+                draw(ax, ep, stack(recs, "net", key, law, ep), key,
+                     band=band, color=cols[k], lw=1.7, zorder=3)
+                draw(ax, ep, stack(recs, "pred", key, law, ep), key,
                      band=False, **PRED)
             ax.set_xlim(*XLIM)
             ax.set_xticks(XTICKS[0])
@@ -149,10 +194,16 @@ def main(worlds=None, out="fig1_emergence.png", laws=None):
 
     for k, nm in enumerate("ABC"[:len(laws or LAWS)]):
         axes[0][0].plot([], [], color=cols[k], lw=1.7, label="Law %s" % nm)
-    axes[0][0].plot([], [], label="Prediction (no fitted parameters)", **PRED)
+    # "Prediction" alone.  That it carries no fitted parameters is the whole
+    # claim of the figure and needs a sentence, so it belongs in the caption; a
+    # legend key can only assert it in passing.
+    axes[0][0].plot([], [], label="Prediction", **PRED)
     h, l = axes[0][0].get_legend_handles_labels()
-    fig.legend(h, l, loc="upper center", bbox_to_anchor=(0.5, 0.035), ncol=3,
-               handletextpad=0.6, columnspacing=2.0, handlelength=1.8)
+    # one column per entry, so the four sit on a single line.  With ncol=3 and
+    # four entries matplotlib fills column-major and wraps Law B underneath.
+    fig.legend(h, l, loc="upper center", bbox_to_anchor=(0.5, 0.035),
+               ncol=len(l), handletextpad=0.6, columnspacing=1.6,
+               handlelength=1.8)
     p = figure(out)
     fig.savefig(p, bbox_inches="tight", dpi=300)
     print("wrote %s  (%d world%s)" % (p, nw, "" if nw == 1 else "s"))
@@ -169,5 +220,7 @@ if __name__ == "__main__":
                     help="the three laws to draw, e.g. L6_0 L2_0 L0_0; "
                          "default is worlds.F1_LAWS.  Every cell stores all "
                          "sixteen, so changing this recomputes nothing")
+    ap.add_argument("--no-band", dest="band", action="store_false",
+                    help="draw the across-world centre only, with no band")
     ns = ap.parse_args()
-    main(ns.worlds, ns.out, ns.laws)
+    main(ns.worlds, ns.out, ns.laws, ns.band)
