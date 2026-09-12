@@ -1,4 +1,11 @@
-F2 world, seed 0, 400 epochs of per-fact SGD
-  N=1  rows 112 (40 single-token)   max |diff| 0.000e+00 BIT-IDENTICAL   old  0.52s  new  0.41s  1.28x
-  N=2  rows 112 (40 single-token)   max |diff| 0.000e+00 BIT-IDENTICAL   old  0.75s  new  0.68s  1.10x
-  N=3  rows 112 (40 single-token)   max |diff| 0.000e+00 BIT-IDENTICAL   old  1.25s  new  1.22s  1.02x
+per-fact SGD, seed 0, min of 5 runs
+  F1 N=1  1820 rows (  48 single-token) x  30 epochs   max |diff| 0.000e+00 identical   old  1.30s  new  0.97s  1.34x
+  F1 N=2  1820 rows (  48 single-token) x  30 epochs   max |diff| 0.000e+00 identical   old  2.16s  new  1.78s  1.22x
+  F1 N=3  1820 rows (  48 single-token) x  30 epochs   max |diff| 0.000e+00 identical   old  3.33s  new  3.18s  1.05x
+  F2 N=1   112 rows (  40 single-token) x 400 epochs   max |diff| 0.000e+00 identical   old  1.03s  new  0.62s  1.65x
+  F2 N=2   112 rows (  40 single-token) x 400 epochs   max |diff| 0.000e+00 identical   old  1.69s  new  1.35s  1.25x
+  F2 N=3   112 rows (  40 single-token) x 400 epochs   max |diff| 0.000e+00 identical   old  2.73s  new  2.60s  1.05x
+  F3 N=1    36 rows (   3 single-token) x 200 epochs   max |diff| 0.000e+00 identical   old  0.17s  new  0.13s  1.33x
+  F3 N=2    36 rows (   3 single-token) x 200 epochs   max |diff| 0.000e+00 identical   old  0.28s  new  0.21s  1.29x
+  F3 N=3    36 rows (   3 single-token) x 200 epochs   max |diff| 0.000e+00 identical   old  0.45s  new  0.42s  1.09x
+all bit-identical

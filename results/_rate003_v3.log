@@ -1,0 +1,17 @@
+15 cells, window 4000 rescaled epochs, one rate throughout
+  wrote w00 N=1 at 0.003  (161s)
+  wrote w03 N=1 at 0.003  (162s)
+  wrote w02 N=1 at 0.003  (162s)
+  wrote w01 N=1 at 0.003  (162s)
+  wrote w02 N=2 at 0.003  (182s)
+  wrote w03 N=2 at 0.003  (184s)
+  wrote w01 N=2 at 0.003  (184s)
+  wrote w00 N=2 at 0.003  (184s)
+  wrote w02 N=3 at 0.003  (257s)
+  wrote w00 N=3 at 0.003  (258s)
+  wrote w01 N=3 at 0.003  (258s)
+  wrote w03 N=3 at 0.003  (260s)
+  wrote w04 N=1 at 0.003  (104s)
+  wrote w04 N=2 at 0.003  (116s)
+  wrote w04 N=3 at 0.003  (168s)
+wrote C:\Users\hugos\Desktop\Research\Abstract Relational Paper\compositional-dynamics\figures\fig3_eta0p003.png

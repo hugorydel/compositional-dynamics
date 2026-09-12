@@ -1,7 +1,19 @@
-F2 world, seed 0.  naive = prefix/suffix products rebuilt per call
-  N=2  400 epochs x 8 substeps = 12800 rhs calls
+seed 0.  naive = prefix/suffix products rebuilt per call
+  F1 N=2  60 epochs x 4 substeps = 960 rhs calls
+     agreement  max |diff| 0.000e+00 against max |E| 0.041  (relative 0.0e+00)
+     speed      naive   0.45s   current   0.24s   1.90x
+  F1 N=3  30 epochs x 8 substeps = 960 rhs calls
+     agreement  max |diff| 1.301e-18 against max |E| 0.010  (relative 1.3e-16)
+     speed      naive   0.39s   current   0.29s   1.38x
+  F2 N=2  400 epochs x 4 substeps = 6400 rhs calls
      agreement  max |diff| 0.000e+00 against max |E| 3.493  (relative 0.0e+00)
-     speed      naive   0.73s   current   0.55s   1.32x
-  N=3  200 epochs x 32 substeps = 25600 rhs calls
+     speed      naive   0.62s   current   0.50s   1.24x
+  F2 N=3  200 epochs x 8 substeps = 6400 rhs calls
      agreement  max |diff| 1.388e-17 against max |E| 0.074  (relative 1.9e-16)
-     speed      naive   2.04s   current   1.42s   1.44x
+     speed      naive   0.97s   current   0.69s   1.40x
+  F3 N=2  300 epochs x 4 substeps = 4800 rhs calls
+     agreement  max |diff| 0.000e+00 against max |E| 1.195  (relative 0.0e+00)
+     speed      naive   0.29s   current   0.21s   1.41x
+  F3 N=3  150 epochs x 8 substeps = 4800 rhs calls
+     agreement  max |diff| 1.301e-18 against max |E| 0.008  (relative 1.7e-16)
+     speed      naive   0.48s   current   0.30s   1.64x
