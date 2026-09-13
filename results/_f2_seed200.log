@@ -1,0 +1,8 @@
+6 cells on 6 processes
+  wrote f2   w200 N=2 B  (66s)
+  wrote f2   w200 N=2 A  (66s)
+  wrote f2   w200 N=3 B  (68s)
+  wrote f2   w200 N=3 A  (68s)
+  wrote f2   w200 N=1 B  (111s)
+  wrote f2   w200 N=1 A  (111s)
+all cells done in 1.9 min

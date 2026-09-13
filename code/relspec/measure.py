@@ -209,6 +209,26 @@ def resolved(epochs, hits, chance=0.0):
     return 100.0 * np.clip((raw - chance) / (1.0 - chance), 0.0, 1.0)
 
 
+def instantaneous(hits, chance=0.0):
+    """Percentage of items correct AT each evaluation, chance-corrected.
+
+    The causal counterpart of `resolved`.  Its value at an epoch depends only
+    on the state at that epoch, so two runs holding identical weights score
+    identically -- which `resolved` does not guarantee, because it credits an
+    item from after its last failure and so reads the future.  Two branches
+    leaving a switch with the same weights scored 4.55 and 10.89 per cent under
+    `resolved` at depth 1 in Figure 2, and 10.89 and 10.89 under this.
+
+    The price is that it can fall when an item crosses back over the retrieval
+    boundary.  `tests/check_reversals.py` measures how much, in every figure,
+    and whether the prediction falls in the same worlds.
+    """
+    raw = np.asarray(hits, bool).mean(axis=1)
+    if chance <= 0:
+        return 100.0 * raw
+    return 100.0 * np.clip((raw - chance) / (1.0 - chance), 0.0, 1.0)
+
+
 def unlocked(epochs, hits):
     """Per item, the first epoch after its LAST failure, so a curve built from
     this is monotone.  Instantaneous accuracy is not: an item that flips back

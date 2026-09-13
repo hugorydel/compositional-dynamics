@@ -5,12 +5,16 @@ acceleration with depth is visible rather than hidden by per-column scaling.
 Top row is the behavioural measure, bottom row the geometric one, with the
 parameter-free prediction overlaid on every curve.
 
-The behavioural measure is the percentage of a law's held-out composites that
-have STABLY resolved, counted from the first evaluation after each item's last
-failure.  Instantaneous top-1 accuracy is the wrong object for a panel about
-emergence: with a modest number of held-out items, single items cross and
-recross a nearest-neighbour boundary, so the curve steps and reverses while
-learning is monotone underneath.
+The behavioural measure is the percentage of a law's held-out composites
+answered correctly AT each evaluation, rescaled so that the best constant
+answer reads as zero.  An earlier version counted an item as stably resolved
+from the first evaluation after its last failure.  That reads the future: the
+value at one epoch depends on what happens after it, so two runs holding the
+same weights could score differently.  The instantaneous measure can fall when
+a single item crosses back over the retrieval boundary, and at depth 3 it does
+in individual worlds, but the prediction falls in the same worlds and across
+two hundred worlds no drawn curve falls by more than half a point
+(tests/check_reversals.py).
 
 Three laws are drawn rather than all sixteen.  Sixteen curves plus sixteen
 predictions cannot be read, and at depth the laws compress into one bundle.
@@ -21,10 +25,9 @@ law changes identity from world to world and the average across worlds mixes
 conditions.  The remaining thirteen stay in every record and belong in a
 predicted-against-observed panel, where the full set carries information.
 
-Each line is the mean over worlds and the band is the range the worlds
-actually covered.  A mean alone reads as one crisp run; the spread is a
-property of the environment, since every world redraws the relation vectors,
-the lattice origins and which composites are withheld.
+Each line is the mean over worlds and the band is its standard error; see
+`BAND`.  Every world redraws the relation vectors, the lattice origins and
+which composites are withheld.
 """
 
 import glob
@@ -37,13 +40,14 @@ import numpy as np
 from _paths import RESULTS, figure
 from relspec import worlds
 from relspec.config import DEFAULT as S
-from relspec.measure import detect_emergence, resolved
+from relspec.measure import detect_emergence, resolved, instantaneous
 from style import DARK, panel
 
 DEPTHS = (1, 2, 3)
 PRED = dict(color=DARK, lw=0.8, ls=(0, (2.2, 2.0)), zorder=6)
 LAWS = worlds.F1_LAWS  # Law A, B, C -- fixed by design, see worlds.F1_LAWS
 LAW_COLOURS = ("#1b6ca8", "#b8860b", "#c0392b")  # matches F2/F3
+MEASURE = "instant"    # behavioural row: "instant" (causal) or "stable" (retrospective)
 BAND = "sem"           # "sem", a (lo, hi) percentile pair, or None for min-max
 # Matches fig3.  What the shading is for decides which of these is right.  A
 # spread band answers "how much do worlds differ", and it does not narrow as
@@ -92,6 +96,8 @@ def stack(recs, src, key, law, ep):
     if key == "resolved":
         H = [np.array(r[src]["hits"][law], bool) for r in recs]
         # zero means "no better than answering the same entity every time"
+        if MEASURE == "instant":
+            return np.array([instantaneous(h, chance=1.0 / h.shape[1]) for h in H])
         return np.array([resolved(ep, h, chance=1.0 / h.shape[1]) for h in H])
     return np.array([r[src][key][law] for r in recs], float)
 

@@ -1,0 +1,7 @@
+2 cells, window 4000 rescaled epochs, one rate throughout
+  wrote w200 N=2 at 0.003  (113s)
+  wrote w200 N=3 at 0.003  (168s)
+  N=1  204 worlds
+  N=2  201 worlds
+  N=3  200 worlds, 1 dropped as unscorable
+wrote C:\Users\hugos\Desktop\Research\Abstract Relational Paper\compositional-dynamics\figures\fig3_eta0p003.png

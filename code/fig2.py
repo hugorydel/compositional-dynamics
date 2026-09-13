@@ -15,6 +15,12 @@ afterwards and both errors fall.
 The two counterbalance arms are averaged, because they are the same condition
 with the block labels swapped.  Whether the effect follows the placement rather
 than the label is a separate check and belongs in a supplementary panel.
+
+The behavioural row is instantaneous accuracy over all fifteen held-out
+composites, rescaled so the best constant answer reads as zero.  The control
+therefore sits above zero at depth 1: before the bridge, the undetermined
+composite passes through a region where some worlds already retrieve every
+target, and the theory predicts the same arms (tests/check_degenerate.py).
 """
 
 import glob
@@ -25,7 +31,7 @@ import _paths  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 from _paths import RESULTS, figure
-from relspec.measure import resolved
+from relspec.measure import resolved, instantaneous
 from style import DARK, panel
 
 DEPTHS = (1, 2, 3)
@@ -91,6 +97,7 @@ def scorable(rec):
     return int(at_risk(rec, rec["open"]).sum()) >= 2
 
 
+MEASURE = "instant"    # behavioural row: "instant" (causal) or "stable" (retrospective)
 BAND = "sem"           # "sem", a (lo, hi) percentile pair, or None for min-max
 # What the shading is for decides which of these is right.  A spread band
 # answers "how much do worlds differ", and each world's behavioural curve here
@@ -126,7 +133,7 @@ def spread(V, key):
     return np.clip(m - se, 0.0, 100.0), np.clip(m + se, 0.0, 100.0)
 
 
-def by_world(recs):
+def by_world(recs, keep_all=False):
     """{seed: [its scorable counterbalance records]}.
 
     The two arms of a world share a seed, hence its premise geometry and its
@@ -139,17 +146,28 @@ def by_world(recs):
     """
     out = {}
     for r in recs:
-        if scorable(r):
+        if keep_all or scorable(r):
             out.setdefault(r["seed"], []).append(r)
     return dict(sorted(out.items()))
 
 
-def after(rec, arm, src, key, law):
+def after(rec, arm, src, key, law, restrict=True):
     """One arm's post-switch series, with the switch at zero."""
     d = rec["arms"][arm][src]
     ep = np.array(d["epochs"], float) - rec["t_switch"]
     m = ep >= 0
-    if key == "resolved":
+    if key == "resolved" and MEASURE == "instant":
+        # every item, against the best constant answer; no at-risk restriction,
+        # which existed only to cancel the look-ahead in `resolved`
+        h = np.array(d["hits"][law], bool)
+        v = instantaneous(h, chance=1.0 / h.shape[1])
+    elif key == "resolved" and not restrict:
+        # every item in every arm, against the best constant answer over all
+        # fifteen.  Shown only to make visible what the restriction removes;
+        # see `main(exclude=False)`.
+        h = np.array(d["hits"][law], bool)
+        v = resolved(np.array(d["epochs"], float), h, chance=1.0 / h.shape[1])
+    elif key == "resolved":
         keep = at_risk(rec, law)
         h = np.array(d["hits"][law], bool)[:, keep]
         # the best constant answer scores one item, since every held-out target
@@ -162,22 +180,73 @@ def after(rec, arm, src, key, law):
     return ep[m], v[m]
 
 
-def main():
+N_WORLDS = 200         # every column averages exactly this many worlds
+
+
+def world_set(keep_all=False):
+    """The first `N_WORLDS` seeds, in seed order, usable at EVERY depth.
+
+    A seed is usable at a depth when both counterbalance arms are on disk and
+    at least one of them is scorable, which is the rule `by_world` already
+    applies within a column.  Applying it per column let the columns average
+    different worlds: world 126 lost both arms at depth 1 and was kept at
+    depths 2 and 3.  A seed that fails at any depth is dropped from all of
+    them and the next seed takes its place.
+
+    Only the two counterbalance arms are read.  A dose series over `n_bridge`
+    lives in the same directory and answers a different question, so it must
+    not be swept up by a wildcard.  Files beyond the set are ignored.
+    """
+    arms = {}
+    for d in DEPTHS:
+        arms[d] = {}
+        for a in ("A", "B"):
+            for f in glob.glob(os.path.join(RESULTS, "f2",
+                                            "w*_d%d_%s.json" % (d, a))):
+                seed = int(os.path.basename(f).split("_")[0][1:])
+                arms[d].setdefault(seed, []).append(f)
+    complete = [s for s in sorted(set.intersection(*(set(v) for v in arms.values())))
+                if all(len(arms[d][s]) == 2 for d in DEPTHS)]
+    good, bad = [], []
+    for s in complete:
+        if len(good) == N_WORLDS:
+            break
+        ok = keep_all or all(any(scorable(json.load(open(f))) for f in arms[d][s])
+                             for d in DEPTHS)
+        (good if ok else bad).append(s)
+    return good, bad, arms
+
+
+def main(exclude=None, out="fig2_identifiability.png"):
+    """`exclude` applies the at-risk restriction and the scorability filter.
+
+    Both exist only for the retrospective measure, whose look-ahead made two
+    arms with identical switch weights score differently; restricting to the
+    items still wrong at the switch cancelled that, at the price of dropping
+    arms with nothing left to score.  The instantaneous measure has no
+    look-ahead, so by default nothing is excluded and every arm and item is
+    scored.  The arms that used to be dropped are a transient in the
+    undetermined composite that the theory itself predicts
+    (tests/check_degenerate.py).
+    """
+    if exclude is None:
+        exclude = MEASURE == "stable"
     fig, axes = plt.subplots(2, 3, figsize=(9.8, 5.6))
     fig.subplots_adjust(wspace=0.14, hspace=0.44)
+    seeds, dropped, arms = world_set(keep_all=not exclude)
+    print("  %d worlds in every column%s%s"
+          % (len(seeds),
+             "" if not dropped else ", dropped as unscorable: %s" % dropped,
+             "" if len(seeds) == N_WORLDS or not seeds
+             else "  -- SHORT of %d, extend the run" % N_WORLDS))
 
     for col, depth in enumerate(DEPTHS):
-        # exactly the two counterbalance arms.  A dose series over `n_bridge`
-        # lives in the same directory and answers a different question, so it
-        # must not be swept up by a wildcard.
-        files = sorted(f for a in ("A", "B")
-                       for f in glob.glob(os.path.join(
-                           RESULTS, "f2", "w*_d%d_%s.json" % (depth, a))))
+        files = [f for s in seeds for f in sorted(arms[depth][s])]
         if not files:
             continue
         recs = [json.load(open(f)) for f in files]
         lrt = recs[0]["lr_target"]
-        worlds_ = by_world(recs)
+        worlds_ = by_world(recs, keep_all=not exclude)
         nw = len(worlds_)
         kept = sum(len(v) for v in worlds_.values())
         print("  N=%d  %d worlds, %d of %d arms scorable"
@@ -189,9 +258,11 @@ def main():
             for arm, c, _ in ARMS:
                 for src, kw in (("net", dict(color=c, lw=1.8, zorder=3)),
                                 ("pred", PRED)):
-                    ep = after(recs[0], arm, src, key, recs[0]["open"])[0]
+                    ep = after(recs[0], arm, src, key, recs[0]["open"],
+                               restrict=exclude)[0]
                     W = np.array([
-                        summarise(np.array([after(r, arm, src, key, r["open"])[1]
+                        summarise(np.array([after(r, arm, src, key, r["open"],
+                                                  restrict=exclude)[1]
                                             for r in rs]), key)
                         for rs in worlds_.values()])
                     ax.plot(ep, summarise(W, key), **kw)
@@ -239,7 +310,7 @@ def main():
     fig.legend(h, l, loc="upper center", bbox_to_anchor=(0.5, 0.01),
                ncol=len(l), handletextpad=0.6, columnspacing=2.4,
                handlelength=1.8)
-    p = figure("fig2_identifiability.png")
+    p = figure(out)
     fig.savefig(p, bbox_inches="tight", dpi=300)
     print("wrote %s" % p)
 

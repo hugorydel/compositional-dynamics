@@ -5,9 +5,10 @@ the linking fact.  Nothing before the intervention is drawn.  Both arms leave
 identical pre-switch weights; only one then receives the fact.
 
 Top row is the percentage of the eighty withheld cross-structure comparisons
-that have STABLY resolved, counted from the first evaluation after each one's
-last failure.  Instantaneous top-1 accuracy is not that quantity and can fall,
-which is why it cannot carry a panel labelled as comparisons resolved.
+answered correctly at each evaluation, rescaled against what the arm scores at
+the switch.  It depends only on the state at that evaluation, so both arms
+start at the same point.  At depth 3 it dips and recovers after the fact, and
+the prediction dips in the same worlds (tests/check_reversals.py).
 
 Bottom row is the distance from the predicted point to the entity it should
 have retrieved, in units of the median spacing between candidates in the same
@@ -26,7 +27,7 @@ import _paths  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 from _paths import RESULTS, figure
-from relspec.measure import resolved
+from relspec.measure import resolved, instantaneous
 from style import DARK, panel
 
 DEPTHS = (1, 2, 3)
@@ -50,6 +51,7 @@ YLAB = {"top": "Compositional Accuracy\n(held-out)",
         "bot": "Geometric Error"}
 
 
+MEASURE = "instant"    # behavioural row: "instant" (causal) or "stable" (retrospective)
 BAND = "sem"           # "sem", a (lo, hi) percentile pair, or None for min-max
 # What the shading is for decides which of these is right.  A spread band
 # answers "how much do worlds differ", and over twenty worlds min-to-max
@@ -158,38 +160,74 @@ def after(rec, arm, src, key, rescale=False):
     if key == "resolved":
         h = np.array(d["hits"]["cross"], bool)
         k = int(np.argmin(np.abs(ep)))
-        v = resolved(np.array(d["epochs"], float), h, chance=float(h[k].mean()))
+        if MEASURE == "instant":
+            v = instantaneous(h, chance=float(h[k].mean()))
+        else:
+            v = resolved(np.array(d["epochs"], float), h,
+                         chance=float(h[k].mean()))
     else:
         v = np.array(d[key]["cross"], float)
     return ep[m], v[m]
+
+
+N_WORLDS = 200         # every column averages exactly this many worlds
+
+
+def seed_of(path):
+    return int(os.path.basename(path).split("_")[0][1:])
+
+
+def world_set(sub):
+    """The first `N_WORLDS` seeds, in seed order, scorable at EVERY depth.
+
+    One set for the whole figure rather than one per column.  Filtering each
+    depth on its own would let the columns average different worlds -- depth 3
+    dropping world 91 and depths 1 and 2 keeping it -- so a difference between
+    columns could be a difference in sample.  A seed unscorable at any depth is
+    dropped from all of them and the next seed takes its place, which is why
+    runs are extended past `N_WORLDS` rather than stopped at it.
+
+    Files beyond the set are ignored, not deleted: a spare run that wrote a
+    few extra cells changes nothing about what is drawn.
+    """
+    have = {d: {seed_of(f): f for f in glob.glob(
+                os.path.join(RESULTS, sub, "w*_d%d.json" % d))} for d in DEPTHS}
+    common = sorted(set.intersection(*(set(v) for v in have.values())))
+    good, bad = [], []
+    for s in common:
+        if len(good) == N_WORLDS:
+            break
+        ok = all(scorable(json.load(open(have[d][s]))) for d in DEPTHS)
+        (good if ok else bad).append(s)
+    return good, bad, have
 
 
 def main(sub="f3_lr0p003", out="fig3_eta0p003.png"):
     """`sub` is the results sub-directory, so a run at another step size can be
     drawn with the same code into its own file.
 
-    The default is the published set: twenty worlds at the rate the figure uses.
-    The locked-rate directory it used to point at is gone, and pointing a
-    default at a directory that no longer exists produces an empty figure
-    rather than an error, which is the sort of thing that survives to a draft.
+    The default is the published set.  The locked-rate directory it used to
+    point at is gone, and pointing a default at a directory that no longer
+    exists produces an empty figure rather than an error, which is the sort of
+    thing that survives to a draft.
     """
     fig, axes = plt.subplots(2, 3, figsize=(9.8, 5.6))
     fig.subplots_adjust(wspace=0.14, hspace=0.44)
     lrt = BASE_RATE
+    seeds, dropped, have = world_set(sub)
+    print("  %d worlds in every column%s%s"
+          % (len(seeds),
+             "" if not dropped else ", dropped as unscorable: %s" % dropped,
+             "" if len(seeds) == N_WORLDS or not seeds
+             else "  -- SHORT of %d, extend the run" % N_WORLDS))
 
     for col, depth in enumerate(DEPTHS):
-        files = sorted(glob.glob(os.path.join(RESULTS, sub,
-                                              "w*_d%d.json" % depth)))
+        files = [have[depth][s] for s in seeds]
         if not files:
             for row in (0, 1):
                 axes[row][col].set_visible(False)
             continue
         recs = [json.load(open(f)) for f in files]
-        keep = [r for r in recs if scorable(r)]
-        print("  N=%d  %d worlds%s" % (depth, len(keep),
-              "" if len(keep) == len(recs)
-              else ", %d dropped as unscorable" % (len(recs) - len(keep))))
-        recs = keep
         lrt = recs[0]["lr_target"]
         xhi = WINDOW * scale_of(recs[0])
         xt = ticks_for(xhi)
