@@ -4,11 +4,13 @@ Two by three.  Columns are depths, sharing one logarithmic axis of epochs since
 the linking fact.  Nothing before the intervention is drawn.  Both arms leave
 identical pre-switch weights; only one then receives the fact.
 
-Top row is the percentage of the eighty withheld cross-structure comparisons
-answered correctly at each evaluation, rescaled against what the arm scores at
-the switch.  It depends only on the state at that evaluation, so both arms
-start at the same point.  At depth 3 it dips and recovers after the fact, and
-the prediction dips in the same worlds (tests/check_reversals.py).
+Top row is plain held-out accuracy: the percentage of the eighty withheld
+cross-structure comparisons answered correctly at each evaluation, with no
+chance correction.  It depends only on the state at that evaluation, so both
+arms start at the same point.  Without the link the curve sits at a floor of
+about 12 to 17 per cent, because an unresolved offset lands queries on the
+most common targets.  At depth 3 the linked curve dips and recovers, and the
+prediction dips in the same worlds (tests/check_reversals.py).
 
 Bottom row is the distance from the predicted point to the entity it should
 have retrieved, in units of the median spacing between candidates in the same
@@ -51,7 +53,7 @@ YLAB = {"top": "Compositional Accuracy\n(held-out)",
         "bot": "Geometric Error"}
 
 
-MEASURE = "instant"    # behavioural row: "instant" (causal) or "stable" (retrospective)
+MEASURE = "raw"        # behavioural row: "raw" (plain accuracy), "instant" or "stable"
 BAND = "sem"           # "sem", a (lo, hi) percentile pair, or None for min-max
 # What the shading is for decides which of these is right.  A spread band
 # answers "how much do worlds differ", and over twenty worlds min-to-max
@@ -117,8 +119,9 @@ def ticks_for(hi):
 def scorable(rec):
     """Has this world enough wrong at the switch to score anything?
 
-    The behavioural curve is corrected against what the arm scores at the
-    switch, so a world where the undetermined offset already happens to answer
+    Only needed for `MEASURE = "instant"`, where the behavioural curve is
+    corrected against what the arm scores at the switch, so a world where the
+    undetermined offset already happens to answer
     every comparison correctly divides by zero and contributes a curve of NaN.
     One world in a hundred does exactly that at depth 3, and because a NaN
     propagates through the mean it removed the whole depth-3 curve rather than
@@ -137,7 +140,8 @@ def scorable(rec):
 def after(rec, arm, src, key, rescale=False):
     """One arm's series, on an axis of epochs since the linking fact.
 
-    The behavioural curve is chance-corrected against WHAT THE ARM SCORES AT
+    By default the behavioural curve is plain accuracy.  With `MEASURE =
+    "instant"` it is instead chance-corrected against WHAT THE ARM SCORES AT
     THE SWITCH.  At that instant no fact in the world has constrained the
     alignment between the two copies, both arms hold identical weights, and the
     residual is a rigid translation of one copy: measured per item, its spread
@@ -160,7 +164,9 @@ def after(rec, arm, src, key, rescale=False):
     if key == "resolved":
         h = np.array(d["hits"]["cross"], bool)
         k = int(np.argmin(np.abs(ep)))
-        if MEASURE == "instant":
+        if MEASURE == "raw":
+            v = instantaneous(h, chance=0.0)
+        elif MEASURE == "instant":
             v = instantaneous(h, chance=float(h[k].mean()))
         else:
             v = resolved(np.array(d["epochs"], float), h,
@@ -197,7 +203,9 @@ def world_set(sub):
     for s in common:
         if len(good) == N_WORLDS:
             break
-        ok = all(scorable(json.load(open(have[d][s]))) for d in DEPTHS)
+        # plain accuracy never divides by zero, so nothing needs dropping
+        ok = MEASURE == "raw" or all(scorable(json.load(open(have[d][s])))
+                                     for d in DEPTHS)
         (good if ok else bad).append(s)
     return good, bad, have
 

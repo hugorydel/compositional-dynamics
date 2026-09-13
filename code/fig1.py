@@ -5,15 +5,15 @@ acceleration with depth is visible rather than hidden by per-column scaling.
 Top row is the behavioural measure, bottom row the geometric one, with the
 parameter-free prediction overlaid on every curve.
 
-The behavioural measure is the percentage of a law's held-out composites
-answered correctly AT each evaluation, rescaled so that the best constant
-answer reads as zero.  An earlier version counted an item as stably resolved
-from the first evaluation after its last failure.  That reads the future: the
-value at one epoch depends on what happens after it, so two runs holding the
-same weights could score differently.  The instantaneous measure can fall when
-a single item crosses back over the retrieval boundary, and at depth 3 it does
-in individual worlds, but the prediction falls in the same worlds and across
-two hundred worlds no drawn curve falls by more than half a point
+The behavioural measure is plain held-out accuracy: the percentage of a law's
+held-out composites answered correctly AT each evaluation, with no chance
+correction.  An earlier version counted an item as stably resolved from the
+first evaluation after its last failure.  That reads the future: the value at
+one epoch depends on what happens after it, so two runs holding the same
+weights could score differently.  Plain accuracy depends only on the state at
+that epoch.  It can fall when a single item crosses back over the retrieval
+boundary, and at depth 3 it does in individual worlds, but the prediction
+falls in the same worlds and the drawn curves barely move
 (tests/check_reversals.py).
 
 Three laws are drawn rather than all sixteen.  Sixteen curves plus sixteen
@@ -47,7 +47,7 @@ DEPTHS = (1, 2, 3)
 PRED = dict(color=DARK, lw=0.8, ls=(0, (2.2, 2.0)), zorder=6)
 LAWS = worlds.F1_LAWS  # Law A, B, C -- fixed by design, see worlds.F1_LAWS
 LAW_COLOURS = ("#1b6ca8", "#b8860b", "#c0392b")  # matches F2/F3
-MEASURE = "instant"    # behavioural row: "instant" (causal) or "stable" (retrospective)
+MEASURE = "raw"        # behavioural row: "raw" (plain accuracy), "instant" or "stable"
 BAND = "sem"           # "sem", a (lo, hi) percentile pair, or None for min-max
 # Matches fig3.  What the shading is for decides which of these is right.  A
 # spread band answers "how much do worlds differ", and it does not narrow as
@@ -96,6 +96,8 @@ def stack(recs, src, key, law, ep):
     if key == "resolved":
         H = [np.array(r[src]["hits"][law], bool) for r in recs]
         # zero means "no better than answering the same entity every time"
+        if MEASURE == "raw":
+            return np.array([instantaneous(h, chance=0.0) for h in H])
         if MEASURE == "instant":
             return np.array([instantaneous(h, chance=1.0 / h.shape[1]) for h in H])
         return np.array([resolved(ep, h, chance=1.0 / h.shape[1]) for h in H])

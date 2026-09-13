@@ -16,11 +16,11 @@ The two counterbalance arms are averaged, because they are the same condition
 with the block labels swapped.  Whether the effect follows the placement rather
 than the label is a separate check and belongs in a supplementary panel.
 
-The behavioural row is instantaneous accuracy over all fifteen held-out
-composites, rescaled so the best constant answer reads as zero.  The control
-therefore sits above zero at depth 1: before the bridge, the undetermined
-composite passes through a region where some worlds already retrieve every
-target, and the theory predicts the same arms (tests/check_degenerate.py).
+The behavioural row is plain held-out accuracy over all fifteen composites,
+with no chance correction.  The control sits above zero at depth 1: before the
+bridge, the undetermined composite passes through a region where some worlds
+already retrieve every target, and the theory predicts the same arms
+(tests/check_degenerate.py).
 """
 
 import glob
@@ -97,7 +97,7 @@ def scorable(rec):
     return int(at_risk(rec, rec["open"]).sum()) >= 2
 
 
-MEASURE = "instant"    # behavioural row: "instant" (causal) or "stable" (retrospective)
+MEASURE = "raw"        # behavioural row: "raw" (plain accuracy), "instant" or "stable"
 BAND = "sem"           # "sem", a (lo, hi) percentile pair, or None for min-max
 # What the shading is for decides which of these is right.  A spread band
 # answers "how much do worlds differ", and each world's behavioural curve here
@@ -156,11 +156,12 @@ def after(rec, arm, src, key, law, restrict=True):
     d = rec["arms"][arm][src]
     ep = np.array(d["epochs"], float) - rec["t_switch"]
     m = ep >= 0
-    if key == "resolved" and MEASURE == "instant":
-        # every item, against the best constant answer; no at-risk restriction,
-        # which existed only to cancel the look-ahead in `resolved`
+    if key == "resolved" and MEASURE in ("instant", "raw"):
+        # every item, against the best constant answer or, for "raw", against
+        # nothing; no at-risk restriction, which existed only to cancel the
+        # look-ahead in `resolved`
         h = np.array(d["hits"][law], bool)
-        v = instantaneous(h, chance=1.0 / h.shape[1])
+        v = instantaneous(h, chance=0.0 if MEASURE == "raw" else 1.0 / h.shape[1])
     elif key == "resolved" and not restrict:
         # every item in every arm, against the best constant answer over all
         # fifteen.  Shown only to make visible what the restriction removes;
@@ -223,9 +224,8 @@ def main(exclude=None, out="fig2_identifiability.png"):
     Both exist only for the retrospective measure, whose look-ahead made two
     arms with identical switch weights score differently; restricting to the
     items still wrong at the switch cancelled that, at the price of dropping
-    arms with nothing left to score.  The instantaneous measure has no
-    look-ahead, so by default nothing is excluded and every arm and item is
-    scored.  The arms that used to be dropped are a transient in the
+    arms with nothing left to score.  Plain accuracy has no look-ahead, so by
+    default nothing is excluded and every arm and item is scored.  The arms that used to be dropped are a transient in the
     undetermined composite that the theory itself predicts
     (tests/check_degenerate.py).
     """

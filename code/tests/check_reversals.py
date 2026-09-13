@@ -1,7 +1,8 @@
 """How often does instantaneous accuracy fall, and does the theory fall with it?
 
 The behavioural row switched from stable resolution, which reads the future,
-to instantaneous chance-corrected accuracy, which does not.  The cost of the
+to plain instantaneous accuracy, which does not.  Each figure's own `MEASURE`
+decides whether a chance correction is applied, so this checks what is drawn.  The cost of the
 switch is that a curve can fall when a single held-out item crosses back over
 the retrieval boundary.  This measures that cost where it could matter:
 
@@ -47,7 +48,7 @@ def chance_const(h):
 
 
 def figure1():
-    print("Figure 1, from initialisation, chance = best constant answer")
+    print("Figure 1, from initialisation, measure %r" % fig1.MEASURE)
     for d in DEPTHS:
         recs = [json.load(open(f)) for f in fig1.cells(d)]
         for lab, law in zip("ABC", fig1.LAWS):
@@ -56,12 +57,14 @@ def figure1():
                 c[src] = []
                 for r in recs:
                     h = np.array(r[src]["hits"][law], bool)
-                    c[src].append(instantaneous(h, chance=chance_const(h)))
+                    ch = 0.0 if fig1.MEASURE == "raw" else chance_const(h)
+                    c[src].append(instantaneous(h, chance=ch))
             row("N=%d law %s" % (d, lab), c["net"], c["pred"])
 
 
 def figure2():
-    print("Figure 2, open law, after the bridge, every arm and item")
+    print("Figure 2, open law, after the bridge, every arm and item, measure %r"
+          % fig2.MEASURE)
     seeds, _, arms = fig2.world_set(keep_all=True)
     for d in DEPTHS:
         c = {(a, s): [] for a in ("hold", "insert") for s in ("net", "pred")}
@@ -72,13 +75,14 @@ def figure2():
                     dd = r["arms"][arm][src]
                     ep = np.array(dd["epochs"], float) - r["t_switch"]
                     h = np.array(dd["hits"][r["open"]], bool)[ep >= 0]
-                    c[arm, src].append(instantaneous(h, chance=chance_const(h)))
+                    ch = 0.0 if fig2.MEASURE == "raw" else chance_const(h)
+                    c[arm, src].append(instantaneous(h, chance=ch))
         for arm in ("hold", "insert"):
             row("N=%d %s" % (d, arm), c[arm, "net"], c[arm, "pred"])
 
 
 def figure3():
-    print("Figure 3, after the link, chance = score at the switch")
+    print("Figure 3, after the link, measure %r" % fig3.MEASURE)
     seeds, _, have = fig3.world_set("f3_lr0p003")
     for d in DEPTHS:
         c = {(a, s): [] for a in ("hold", "insert") for s in ("net", "pred")}
@@ -89,8 +93,8 @@ def figure3():
                 ep = np.array(dd["epochs"], float) - r["t_switch"]
                 h = np.array(dd["hits"]["cross"], bool)
                 k0 = int(np.argmin(np.abs(ep)))
-                c[arm, src].append(instantaneous(h[ep >= 0],
-                                                 chance=float(h[k0].mean())))
+                ch = 0.0 if fig3.MEASURE == "raw" else float(h[k0].mean())
+                c[arm, src].append(instantaneous(h[ep >= 0], chance=ch))
         for arm in ("hold", "insert"):
             row("N=%d %s" % (d, arm), c[arm, "net"], c[arm, "pred"])
 
