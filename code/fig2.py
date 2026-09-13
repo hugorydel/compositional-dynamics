@@ -25,7 +25,6 @@ import _paths  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 from _paths import RESULTS, figure
-from relspec.config import DEFAULT as S
 from relspec.measure import resolved
 from style import DARK, panel
 
@@ -212,9 +211,11 @@ def main():
                         ha="center", va="bottom", color=DARK)
             else:
                 ax.set_yscale("log")
+                # No reference line.  Retrieval is reliable well below one
+                # candidate spacing and falls away above it, but where inside
+                # that transition to draw a rule is a choice, and a dashed line
+                # invites a reader to treat the choice as a result.
                 ax.set_ylim(1e-3, 6)
-                ax.axhline(S.tau, color="#bbbbbb", lw=0.8, ls=(0, (3, 3)),
-                           zorder=1)
                 ax.set_xlabel("Epochs since the bridging fact")
             if col:
                 ax.set_yticklabels([])

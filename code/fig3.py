@@ -112,6 +112,26 @@ def ticks_for(hi):
                   for v in vals]
 
 
+def scorable(rec):
+    """Has this world enough wrong at the switch to score anything?
+
+    The behavioural curve is corrected against what the arm scores at the
+    switch, so a world where the undetermined offset already happens to answer
+    every comparison correctly divides by zero and contributes a curve of NaN.
+    One world in a hundred does exactly that at depth 3, and because a NaN
+    propagates through the mean it removed the whole depth-3 curve rather than
+    one world's contribution to it.
+
+    Two items, not one: over a single remaining query the correction is again
+    degenerate.  The same rule is applied in Figure 2 for the same reason.
+    Nothing else comes close here -- the next world has 53 of 80 still wrong.
+    """
+    d = rec["arms"]["insert"]["net"]
+    ep = np.array(d["epochs"], float) - rec["t_switch"]
+    h = np.array(d["hits"]["cross"], bool)[int(np.argmin(np.abs(ep)))]
+    return int((~h).sum()) >= 2
+
+
 def after(rec, arm, src, key, rescale=False):
     """One arm's series, on an axis of epochs since the linking fact.
 
@@ -144,12 +164,18 @@ def after(rec, arm, src, key, rescale=False):
     return ep[m], v[m]
 
 
-def main(sub="f3", out="fig3_integration.png"):
+def main(sub="f3_lr0p003", out="fig3_eta0p003.png"):
     """`sub` is the results sub-directory, so a run at another step size can be
-    drawn with the same code into its own file."""
+    drawn with the same code into its own file.
+
+    The default is the published set: twenty worlds at the rate the figure uses.
+    The locked-rate directory it used to point at is gone, and pointing a
+    default at a directory that no longer exists produces an empty figure
+    rather than an error, which is the sort of thing that survives to a draft.
+    """
     fig, axes = plt.subplots(2, 3, figsize=(9.8, 5.6))
     fig.subplots_adjust(wspace=0.14, hspace=0.44)
-    npairs, lrt = 80, BASE_RATE
+    lrt = BASE_RATE
 
     for col, depth in enumerate(DEPTHS):
         files = sorted(glob.glob(os.path.join(RESULTS, sub,
@@ -159,7 +185,12 @@ def main(sub="f3", out="fig3_integration.png"):
                 axes[row][col].set_visible(False)
             continue
         recs = [json.load(open(f)) for f in files]
-        npairs, lrt = recs[0]["n_pairs"], recs[0]["lr_target"]
+        keep = [r for r in recs if scorable(r)]
+        print("  N=%d  %d worlds%s" % (depth, len(keep),
+              "" if len(keep) == len(recs)
+              else ", %d dropped as unscorable" % (len(recs) - len(keep))))
+        recs = keep
+        lrt = recs[0]["lr_target"]
         xhi = WINDOW * scale_of(recs[0])
         xt = ticks_for(xhi)
 
@@ -191,15 +222,12 @@ def main(sub="f3", out="fig3_integration.png"):
                 ax.set_yscale("log")
                 # the depth 3 control spikes to about 100 spacings early on,
                 # so the ceiling has to clear that; the floor is the smallest
-                # value any arm reaches.  The reference is ONE candidate
-                # spacing, the measured retrieval boundary: pooled over every
-                # item and evaluation, retrieval is 100% below it and falls
-                # away above it, and the epoch at which the mean error crosses
-                # it is the epoch the row above reaches ceiling, at all three
-                # depths.  That is what links the two rows.
+                # value any arm reaches.  No reference line: retrieval is 100%
+                # below about one candidate spacing and falls away above it
+                # (tests/check_readout.py), but where exactly to draw the line
+                # inside that transition is a choice, and a dashed rule invites
+                # a reader to treat the choice as a result.
                 ax.set_ylim(2e-3, 150)
-                ax.axhline(1.0, color="#bbbbbb", lw=0.8, ls=(0, (3, 3)),
-                           zorder=1)
                 ax.set_xlabel("Epochs since the linking fact")
             if col:
                 ax.set_yticklabels([])
@@ -208,8 +236,6 @@ def main(sub="f3", out="fig3_integration.png"):
             panel(ax, "abcdef"[row * 3 + col],
                   dx=-0.22 if col == 0 else -0.08, dy=1.16)
 
-    axes[0][0].set_ylabel("Cross-structure comparisons\nstably resolved  "
-                          "(%% of %d)" % npairs, linespacing=1.6)
     for arm, c, lab in ARMS:
         axes[0][0].plot([], [], color=c, lw=1.8, label=lab)
     # "Prediction" alone.  That it carries no fitted parameters is the whole
