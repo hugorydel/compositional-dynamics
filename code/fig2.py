@@ -16,11 +16,13 @@ The two counterbalance arms are averaged, because they are the same condition
 with the block labels swapped.  Whether the effect follows the placement rather
 than the label is a separate check and belongs in a supplementary panel.
 
-The behavioural row is plain held-out accuracy over all fifteen composites,
-with no chance correction.  The control sits above zero at depth 1: before the
-bridge, the undetermined composite passes through a region where some worlds
-already retrieve every target, and the theory predicts the same arms
-(tests/check_degenerate.py).
+The behavioural row is held-out accuracy over all fifteen composites, shown
+relative to the switch: 0 is the mean accuracy across worlds when the bridge
+arrives and 100 is perfect (`ADJUST`).  Plain accuracy is not zero there,
+because before the bridge the undetermined composite passes through a region
+where some worlds already retrieve every target, and the theory predicts the
+same arms (tests/check_degenerate.py).  Rescaling the mean rather than each
+world means nothing has to be excluded to do it.
 """
 
 import glob
@@ -36,8 +38,8 @@ from style import DARK, panel
 
 DEPTHS = (1, 2, 3)
 PRED = dict(color=DARK, lw=0.8, ls=(0, (2.2, 2.0)), zorder=6)
-ARMS = (("hold", "#c0392b", "No bridging fact"),
-        ("insert", "#1b6ca8", "One bridging fact"))
+ARMS = (("hold", "#c0392b", "No linking fact"),
+        ("insert", "#1b6ca8", "One linking fact"))
 XLIM = (0, 2000)       # the runs go to 40k / 8k / 4k since the bridge
 XTICKS = ([0, 500, 1000, 1500, 2000],
           ["0", "500", "1k", "1.5k", "2k"])
@@ -108,6 +110,31 @@ BAND = "sem"           # "sem", a (lo, hi) percentile pair, or None for min-max
 # raises, and it narrows as worlds are added.  The spread is still worth
 # quoting in the text: 250 to 2,960 epochs to resolution at depth 1, 45 to 210
 # at depth 2, 30 to 80 at depth 3, tenth to ninetieth percentile.
+
+
+ADJUST = "switch"      # "switch": top row relative to the mean at the switch; None: plain
+
+
+def from_switch(centre, band):
+    """Rescale a mean accuracy curve so that 0 is its value at the switch and
+    100 is perfect.
+
+    Applied to the across-world MEAN, not world by world.  A world already at
+    100% when the fact arrives leaves nothing to rescale and divides by zero,
+    and per-world zeros would put every world on its own scale before they are
+    averaged.  On the mean it is one linear map per curve, so the shape of the
+    curve and of its band are unchanged; only the numbers on the axis move.
+    """
+    m0 = float(centre[0])
+
+    def f(y):
+        return 100.0 * (np.asarray(y, float) - m0) / (100.0 - m0)
+
+    return f(centre), (None if band is None else (f(band[0]), f(band[1])))
+
+
+def top_label():
+    return YLAB["top"]
 
 
 def spread(V, key):
@@ -252,7 +279,7 @@ def main(exclude=None, out="fig2_identifiability.png"):
         print("  N=%d  %d worlds, %d of %d arms scorable"
               % (depth, nw, kept, len(recs)))
 
-        for row, key, ylab in ((0, "resolved", YLAB["top"]),
+        for row, key, ylab in ((0, "resolved", top_label()),
                                (1, "geometric", YLAB["bot"])):
             ax = axes[row][col]
             for arm, c, _ in ARMS:
@@ -265,12 +292,14 @@ def main(exclude=None, out="fig2_identifiability.png"):
                                                   restrict=exclude)[1]
                                             for r in rs]), key)
                         for rs in worlds_.values()])
-                    ax.plot(ep, summarise(W, key), **kw)
-                    if src == "net":
-                        band = spread(W, key)
-                        if band is not None:
-                            ax.fill_between(ep, band[0], band[1], color=c,
-                                            alpha=0.25, lw=0, zorder=2)
+                    centre = summarise(W, key)
+                    band = spread(W, key) if src == "net" else None
+                    if key == "resolved" and ADJUST == "switch":
+                        centre, band = from_switch(centre, band)
+                    ax.plot(ep, centre, **kw)
+                    if band is not None:
+                        ax.fill_between(ep, band[0], band[1], color=c,
+                                        alpha=0.25, lw=0, zorder=2)
             ax.set_xlim(*XLIM)
             ax.set_xticks(XTICKS[0])
             ax.set_xticklabels(XTICKS[1])
@@ -286,8 +315,8 @@ def main(exclude=None, out="fig2_identifiability.png"):
                 # candidate spacing and falls away above it, but where inside
                 # that transition to draw a rule is a choice, and a dashed line
                 # invites a reader to treat the choice as a result.
-                ax.set_ylim(1e-3, 6)
-                ax.set_xlabel("Epochs since the bridging fact")
+                ax.set_ylim(5e-3, 10)
+                ax.set_xlabel("Epochs since the linking fact")
             if col:
                 ax.set_yticklabels([])
             else:

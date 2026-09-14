@@ -193,7 +193,7 @@ def main(worlds=None, out="fig1_emergence.png", laws=None, band=True):
                 # candidate spacing and falls away above it, but where inside
                 # that transition to draw a rule is a choice, and a dashed line
                 # invites a reader to treat the choice as a result.
-                ax.set_ylim(1e-3, 4)
+                ax.set_ylim(5e-3, 10)
                 ax.set_xlabel("Training epoch")
             if col:
                 ax.set_yticklabels([])

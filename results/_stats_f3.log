@@ -1,0 +1,60 @@
+==============================================================================
+FIGURE 3  one linking fact between two lattices, eta_target 0.003
+  structure, link False: 32 facts, 3 anchors, 21 tokens, rank 20, null dim 1, largest eigenvalue 13.392, smallest nonzero 0.01174 (8.8e-04 of largest)
+  structure, link True : 33 facts, 3 anchors, 21 tokens, rank 21, null dim 0, largest eigenvalue 13.968, smallest nonzero 0.00222 (1.6e-04 of largest)
+  the eigenvalues depend only on the facts, so they are identical in every world; the link adds one mode 17.8 times below the next smallest
+  200 worlds
+  N=1  (switch at 200000, 40000 epochs after, evaluated every 2500; plotted window 30000)
+   effect
+    correct at the linking fact        both arms 9.36 +/- 0.18 of 80
+    correct at 30000 epochs, link vs none 78.98 +/- 0.27 vs 9.46 +/- 0.20 | higher in 200, lower in 0, equal in 0 of 200 | W = 0, z = 13.4, P = 7.5e-41
+    new compositions with the link     69.62 +/- 0.32 (min 46, max 71); all 80 correct in 179 of 200 worlds
+    correct without the link, 0-30000  change 0.10 +/- 0.15, median 0.00 | up in 3, down in 1 of 200 | W = 4, P = 0.581
+    new compositions without it        0.10 +/- 0.15 (min -18, max 18)
+    geometric error                    median 7-fold lower with the link at 30000 epochs (IQR 6-9)
+    item resolution times, net         median over worlds: 10% at 10000, 50% at 17500, 90% at 20000 epochs
+    item resolution times, pred        median over worlds: 10% at 10000, 50% at 17500, 90% at 20000 epochs
+   prediction
+    count curve, link, 0-30000         pooled R^2 = 1.0000 | per-world RMSE: median 0.0000, 95th pct 0.2774
+    geometric-error curve, link, 0-30000 pooled R^2 = 1.0000 | per-world median |log10 net/pred|: median 0.0001, 95th pct 0.0001
+    count curve, none, 0-30000         pooled R^2 = 1.0000 | per-world RMSE: median 0.0000, 95th pct 0.0000
+    geometric-error curve, none, 0-30000 pooled R^2 = 1.0000 | per-world median |log10 net/pred|: median 0.0000, 95th pct 0.0000
+    epochs to 50% of the gain, link    n = 200 | Pearson r(log t) = 1.0000 | median |log10 obs/pred| = 0.0000 | within one evaluation (2500 epochs) 100.0% | within 10% 100.0%
+    epochs to 90% of the gain, link    n = 200 | Pearson r(log t) = 1.0000 | median |log10 obs/pred| = 0.0000 | within one evaluation (2500 epochs) 100.0% | within 10% 100.0%
+    time rescaling alpha, link         median 1.000 (IQR 1.000-1.000, min 1.000); 1 = same clock
+  N=2  (switch at 65000, 40000 epochs after, evaluated every 500; plotted window 30000)
+   effect
+    correct at the linking fact        both arms 12.61 +/- 0.51 of 80
+    correct at 30000 epochs, link vs none 79.89 +/- 0.05 vs 13.68 +/- 0.56 | higher in 200, lower in 0, equal in 0 of 200 | W = 0, z = 12.9, P = 4.3e-38
+    new compositions with the link     67.28 +/- 0.51 (min 53, max 71); all 80 correct in 196 of 200 worlds
+    correct without the link, 0-30000  change 1.07 +/- 0.63, median 0.00 | up in 31, down in 20 of 200 | W = 504, P = 0.091
+    new compositions without it        1.07 +/- 0.63 (min -18, max 18)
+    geometric error                    median 20-fold lower with the link at 30000 epochs (IQR 17-24)
+    item resolution times, net         median over worlds: 10% at 500, 50% at 2000, 90% at 2500 epochs
+    item resolution times, pred        median over worlds: 10% at 500, 50% at 2000, 90% at 2500 epochs
+   prediction
+    count curve, link, 0-30000         pooled R^2 = 0.9998 | per-world RMSE: median 0.0000, 95th pct 0.3149
+    geometric-error curve, link, 0-30000 pooled R^2 = 0.9999 | per-world median |log10 net/pred|: median 0.0018, 95th pct 0.0051
+    count curve, none, 0-30000         pooled R^2 = 0.9997 | per-world RMSE: median 0.0000, 95th pct 0.2561
+    geometric-error curve, none, 0-30000 pooled R^2 = 1.0000 | per-world median |log10 net/pred|: median 0.0000, 95th pct 0.0001
+    epochs to 50% of the gain, link    n = 200 | Pearson r(log t) = 0.9986 | median |log10 obs/pred| = 0.0000 | within one evaluation (500 epochs) 100.0% | within 10% 99.5%
+    epochs to 90% of the gain, link    n = 200 | Pearson r(log t) = 0.9994 | median |log10 obs/pred| = 0.0000 | within one evaluation (500 epochs) 100.0% | within 10% 99.5%
+    time rescaling alpha, link         median 0.994 (IQR 0.992-0.996, min 0.989); 1 = same clock
+  N=3  (switch at 55000, 40000 epochs after, evaluated every 250; plotted window 30000)
+   effect
+    correct at the linking fact        both arms 13.12 +/- 0.62 of 80
+    correct at 30000 epochs, link vs none 80.00 +/- 0.00 vs 13.62 +/- 0.56 | higher in 200, lower in 0, equal in 0 of 200 | W = 0, z = 13.0, P = 2.1e-38
+    new compositions with the link     66.88 +/- 0.62 (min 0, max 71); all 80 correct in 200 of 200 worlds
+    correct without the link, 0-30000  change 0.50 +/- 0.60, median 0.00 | up in 21, down in 11 of 200 | W = 202, P = 0.201
+    new compositions without it        0.50 +/- 0.60 (min -71, max 18)
+    geometric error                    median 158-fold lower with the link at 30000 epochs (IQR 59-391)
+    item resolution times, net         median over worlds: 10% at 250, 50% at 1000, 90% at 1500 epochs
+    item resolution times, pred        median over worlds: 10% at 250, 50% at 1000, 90% at 1500 epochs
+   prediction
+    count curve, link, 0-30000         pooled R^2 = 0.9945 | per-world RMSE: median 0.1286, 95th pct 2.1201
+    geometric-error curve, link, 0-30000 pooled R^2 = 0.9985 | per-world median |log10 net/pred|: median 0.0131, 95th pct 0.0370
+    count curve, none, 0-30000         pooled R^2 = 0.9998 | per-world RMSE: median 0.0000, 95th pct 0.1818
+    geometric-error curve, none, 0-30000 pooled R^2 = 1.0000 | per-world median |log10 net/pred|: median 0.0000, 95th pct 0.0000
+    epochs to 50% of the gain, link    n = 199 | Pearson r(log t) = 0.9980 | median |log10 obs/pred| = 0.0000 | within one evaluation (250 epochs) 100.0% | within 10% 97.5%
+    epochs to 90% of the gain, link    n = 199 | Pearson r(log t) = 0.9981 | median |log10 obs/pred| = 0.0000 | within one evaluation (250 epochs) 100.0% | within 10% 97.0%
+    time rescaling alpha, link         median 0.984 (IQR 0.982-0.987, min 0.970); 1 = same clock

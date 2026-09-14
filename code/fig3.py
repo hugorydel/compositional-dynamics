@@ -4,13 +4,15 @@ Two by three.  Columns are depths, sharing one logarithmic axis of epochs since
 the linking fact.  Nothing before the intervention is drawn.  Both arms leave
 identical pre-switch weights; only one then receives the fact.
 
-Top row is plain held-out accuracy: the percentage of the eighty withheld
-cross-structure comparisons answered correctly at each evaluation, with no
-chance correction.  It depends only on the state at that evaluation, so both
-arms start at the same point.  Without the link the curve sits at a floor of
-about 12 to 17 per cent, because an unresolved offset lands queries on the
-most common targets.  At depth 3 the linked curve dips and recovers, and the
-prediction dips in the same worlds (tests/check_reversals.py).
+Top row counts correct novel compositions: how many of the eighty withheld
+cross-structure comparisons a world answers correctly at each evaluation,
+averaged across worlds (`ADJUST`).  Every linked curve rises to the same
+ceiling of 80.  Without the link about 9 to 14 are answered correctly by
+chance, because an unresolved offset lands some queries on the right target;
+nothing is inferred, as the geometric error in the row below shows.  It
+depends only on the state at each evaluation, so both arms start at the same
+point.  At depth 3 the linked curve dips and recovers, and the prediction dips
+in the same worlds (tests/check_reversals.py).
 
 Bottom row is the distance from the predicted point to the entity it should
 have retrieved, in units of the median spacing between candidates in the same
@@ -62,6 +64,61 @@ BAND = "sem"           # "sem", a (lo, hi) percentile pair, or None for min-max
 # question a curve drawn against a prediction raises, and it narrows as worlds
 # are added.  The spread is still worth quoting in the text; it does not belong
 # on a panel whose subject is agreement.
+
+
+ADJUST = "count"       # "correct": correct of 80; "count": gained; "switch": vs switch mean; None: plain
+# "count", not "correct".  Before the link each depth answers a different
+# number of comparisons by luck (9.4, 12.6 and 13.1 of 80), because depth 1 has
+# not finished the unlinked world's slowest mode when the link arrives
+# (tests/check_prelink.py).  Subtracting each world's own count at the switch
+# starts every depth at zero without re-running anything.
+
+
+def from_switch(centre, band):
+    """Rescale a mean accuracy curve so that 0 is its value at the switch and
+    100 is perfect.
+
+    Applied to the across-world MEAN, not world by world.  A world already at
+    100% when the fact arrives leaves nothing to rescale and divides by zero,
+    and per-world zeros would put every world on its own scale before they are
+    averaged.  On the mean it is one linear map per curve, so the shape of the
+    curve and of its band are unchanged; only the numbers on the axis move.
+    """
+    m0 = float(centre[0])
+
+    def f(y):
+        return 100.0 * (np.asarray(y, float) - m0) / (100.0 - m0)
+
+    return f(centre), (None if band is None else (f(band[0]), f(band[1])))
+
+
+def gained(V, n_items, with_band):
+    """Net held-out inferences gained since the switch, per world, averaged.
+
+    `V` is each world's plain accuracy in per cent.  The count at each
+    evaluation minus the count at the switch is how many cross-structure
+    comparisons the network answers now that it did not when the link
+    arrived, net of any it has since lost.  Kept as a count rather than a
+    percentage, so the panel says how many inferences one fact produced.
+    Needs `MEASURE = "raw"`, since a count of items is only defined on plain
+    accuracy.
+    """
+    V = np.asarray(V, float)
+    G = (V - V[:, :1]) * n_items / 100.0
+    centre = G.mean(0)
+    if not with_band or len(G) < 2:
+        return centre, None
+    se = G.std(0, ddof=1) / np.sqrt(len(G))
+    return centre, (centre - se, centre + se)
+
+
+def top_label(n_items=None):
+    if ADJUST == "correct":
+        return "Correct Novel Compositions (of %d)" % n_items
+    if ADJUST == "count":
+        return "Novel Compositions"
+    return ("Compositional Accuracy\n(relative to switch)" if ADJUST == "switch"
+            else YLAB["top"])
 
 
 def spread(V, key):
@@ -140,7 +197,8 @@ def scorable(rec):
 def after(rec, arm, src, key, rescale=False):
     """One arm's series, on an axis of epochs since the linking fact.
 
-    By default the behavioural curve is plain accuracy.  With `MEASURE =
+    By default each world's behavioural curve is plain accuracy, and `main`
+    turns it into inferences gained since the switch.  With `MEASURE =
     "instant"` it is instead chance-corrected against WHAT THE ARM SCORES AT
     THE SWITCH.  At that instant no fact in the world has constrained the
     alignment between the two copies, both arms hold identical weights, and the
@@ -210,7 +268,7 @@ def world_set(sub):
     return good, bad, have
 
 
-def main(sub="f3_lr0p003", out="fig3_eta0p003.png"):
+def main(sub="f3_lr0p003", out="fig3_integration.png"):
     """`sub` is the results sub-directory, so a run at another step size can be
     drawn with the same code into its own file.
 
@@ -229,6 +287,7 @@ def main(sub="f3_lr0p003", out="fig3_eta0p003.png"):
              "" if len(seeds) == N_WORLDS or not seeds
              else "  -- SHORT of %d, extend the run" % N_WORLDS))
 
+    extent, n_items = [], None
     for col, depth in enumerate(DEPTHS):
         files = [have[depth][s] for s in seeds]
         if not files:
@@ -237,10 +296,11 @@ def main(sub="f3_lr0p003", out="fig3_eta0p003.png"):
             continue
         recs = [json.load(open(f)) for f in files]
         lrt = recs[0]["lr_target"]
+        n_items = recs[0]["n_pairs"]
         xhi = WINDOW * scale_of(recs[0])
         xt = ticks_for(xhi)
 
-        for row, key, ylab in ((0, "resolved", YLAB["top"]),
+        for row, key, ylab in ((0, "resolved", top_label(recs[0]["n_pairs"])),
                                (1, "geometric", YLAB["bot"])):
             ax = axes[row][col]
             for arm, c, _ in ARMS:
@@ -249,12 +309,31 @@ def main(sub="f3_lr0p003", out="fig3_eta0p003.png"):
                     ser = [after(r, arm, src, key) for r in recs]
                     x = ser[0][0]
                     V = np.array([v for _, v in ser])
-                    ax.plot(x, summarise(V, key), **kw)
-                    if src == "net" and len(V) > 1:
-                        band = spread(V, key)
-                        if band is not None:
-                            ax.fill_between(x, band[0], band[1], color=c,
-                                            alpha=0.25, lw=0, zorder=2)
+                    centre = summarise(V, key)
+                    band = spread(V, key) if (src == "net" and len(V) > 1) else None
+                    if key == "resolved" and ADJUST == "switch":
+                        centre, band = from_switch(centre, band)
+                    elif key == "resolved" and ADJUST == "correct":
+                        # plain accuracy as a count of comparisons out of all
+                        # of them, so every depth shares the same true ceiling
+                        assert MEASURE == "raw", "counts need plain accuracy"
+                        k = n_items / 100.0
+                        centre = centre * k
+                        band = None if band is None else (band[0] * k, band[1] * k)
+                        if src == "net":
+                            print("  N=%d  %-6s %4.1f -> %4.1f of %d"
+                                  % (depth, arm, centre[0], centre[-1], n_items))
+                    elif key == "resolved" and ADJUST == "count":
+                        assert MEASURE == "raw", "counts need plain accuracy"
+                        centre, band = gained(V, recs[0]["n_pairs"], src == "net")
+                        extent.append(centre)
+                        if arm == "insert" and src == "net":
+                            print("  N=%d  linked arm gains %.1f inferences by the "
+                                  "end of the axis" % (depth, centre[-1]))
+                    ax.plot(x, centre, **kw)
+                    if band is not None:
+                        ax.fill_between(x, band[0], band[1], color=c,
+                                        alpha=0.25, lw=0, zorder=2)
             ax.set_xlim(0, xhi)
             ax.set_xticks(xt[0])
             ax.set_xticklabels(xt[1])
@@ -266,14 +345,14 @@ def main(sub="f3_lr0p003", out="fig3_eta0p003.png"):
                         ha="center", va="bottom", color=DARK)
             else:
                 ax.set_yscale("log")
-                # the depth 3 control spikes to about 100 spacings early on,
-                # so the ceiling has to clear that; the floor is the smallest
-                # value any arm reaches.  No reference line: retrieval is 100%
+                # the same range in all three figures, 10 down to half a
+                # decade past 10^-2, which holds every curve drawn here.  No
+                # reference line: retrieval is 100%
                 # below about one candidate spacing and falls away above it
                 # (tests/check_readout.py), but where exactly to draw the line
                 # inside that transition is a choice, and a dashed rule invites
                 # a reader to treat the choice as a result.
-                ax.set_ylim(2e-3, 150)
+                ax.set_ylim(5e-3, 10)
                 ax.set_xlabel("Epochs since the linking fact")
             if col:
                 ax.set_yticklabels([])
@@ -282,6 +361,30 @@ def main(sub="f3_lr0p003", out="fig3_eta0p003.png"):
             panel(ax, "abcdef"[row * 3 + col],
                   dx=-0.22 if col == 0 else -0.08, dy=1.16)
 
+    if ADJUST == "correct" and n_items:
+        # one shared count axis, 0 to every comparison, the same at every depth
+        for col, ax in enumerate(axes[0]):
+            if not ax.get_visible():
+                continue
+            ax.set_ylim(-0.04 * n_items, 1.06 * n_items)
+            ax.set_yticks(list(range(0, n_items + 1, 20)))
+            if col:
+                ax.set_yticklabels([])
+    if ADJUST == "count" and extent:
+        # one shared axis for the three depths.  No guide line and no special
+        # top tick: the ceiling is 80 minus each world's lucky hits, 71 or 53,
+        # so the plateau of a mean curve is an average of two ceilings and
+        # differs by depth; a rule at any one value would read as a maximum
+        hi = max(float(np.max(e)) for e in extent)
+        lo = min(float(np.min(e)) for e in extent)
+        ticks = list(range(0, int(hi) + 1, 20))
+        for col, ax in enumerate(axes[0]):
+            if not ax.get_visible():
+                continue
+            ax.set_ylim(min(lo, 0.0) - 0.04 * hi, 1.06 * hi)
+            ax.set_yticks(ticks)
+            if col:
+                ax.set_yticklabels([])
     for arm, c, lab in ARMS:
         axes[0][0].plot([], [], color=c, lw=1.8, label=lab)
     # "Prediction" alone.  That it carries no fitted parameters is the whole

@@ -34,13 +34,20 @@ def fall(V):
     return np.max(np.maximum.accumulate(V, axis=-1) - V, axis=-1)
 
 
-def row(tag, net, pred):
+def row(tag, net, pred, adjust=None, n_items=None):
     fn, fp = fall(net), fall(pred)
+    m, unit = np.mean(net, axis=0), "pts"
+    # the figure's own transformation of the mean, see `ADJUST`
+    if adjust == "switch":
+        m = 100.0 * (m - m[0]) / (100.0 - m[0])
+    elif adjust == "correct":
+        m, unit = m * n_items / 100.0, "compositions"
+    elif adjust == "count":
+        m, unit = (m - m[0]) * n_items / 100.0, "inferences"
     print("  %-22s >%g pts: network %3d  prediction %3d  both %3d  of %3d"
-          " | drawn curve falls %.2f pts"
+          " | drawn curve falls %.2f %s"
           % (tag, FALL, (fn > FALL).sum(), (fp > FALL).sum(),
-             ((fn > FALL) & (fp > FALL)).sum(), len(fn),
-             float(fall(np.mean(net, axis=0)))))
+             ((fn > FALL) & (fp > FALL)).sum(), len(fn), float(fall(m)), unit))
 
 
 def chance_const(h):
@@ -78,7 +85,8 @@ def figure2():
                     ch = 0.0 if fig2.MEASURE == "raw" else chance_const(h)
                     c[arm, src].append(instantaneous(h, chance=ch))
         for arm in ("hold", "insert"):
-            row("N=%d %s" % (d, arm), c[arm, "net"], c[arm, "pred"])
+            row("N=%d %s" % (d, arm), c[arm, "net"], c[arm, "pred"],
+                adjust=fig2.ADJUST)
 
 
 def figure3():
@@ -96,7 +104,8 @@ def figure3():
                 ch = 0.0 if fig3.MEASURE == "raw" else float(h[k0].mean())
                 c[arm, src].append(instantaneous(h[ep >= 0], chance=ch))
         for arm in ("hold", "insert"):
-            row("N=%d %s" % (d, arm), c[arm, "net"], c[arm, "pred"])
+            row("N=%d %s" % (d, arm), c[arm, "net"], c[arm, "pred"],
+                adjust=fig3.ADJUST, n_items=r["n_pairs"])
 
 
 if __name__ == "__main__":
