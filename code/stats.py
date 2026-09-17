@@ -154,7 +154,7 @@ def figure1():
 
     T = {}          # depth -> (worlds x laws) observed and predicted t*
     for d in DEPTHS:
-        fs = sorted(glob.glob(os.path.join(RESULTS, "f1", "w*_d%d.json" % d)),
+        fs = sorted(glob.glob(os.path.join(glob.escape(RESULTS), "f1", "w*_d%d.json" % d)),
                     key=seed_of)[:N_WORLDS]
         tn = np.full((len(fs), len(law_names)), np.inf)
         tp = np.full_like(tn, np.inf)

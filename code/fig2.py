@@ -229,7 +229,7 @@ def world_set(keep_all=False):
     for d in DEPTHS:
         arms[d] = {}
         for a in ("A", "B"):
-            for f in glob.glob(os.path.join(RESULTS, "f2",
+            for f in glob.glob(os.path.join(glob.escape(RESULTS), "f2",
                                             "w*_d%d_%s.json" % (d, a))):
                 seed = int(os.path.basename(f).split("_")[0][1:])
                 arms[d].setdefault(seed, []).append(f)

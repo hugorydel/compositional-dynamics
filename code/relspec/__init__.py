@@ -10,6 +10,7 @@ The whole library in one screen:
     measure     held-out retrieval, geometric error, the criterion, Trajectory
     train       one training loop (per-fact SGD or full batch), with probes
     theory      prospective trajectories: shallow closed form, deep coupled ODE
+    checkpoint  the state a run needs to be continued instead of re-run
     io          results paths and self-describing JSON
 
 The design point worth knowing before reading anything else: SGD, the shallow
@@ -39,7 +40,7 @@ Typical use:
     obs.emergence(DEFAULT), pred.emergence(DEFAULT)
 """
 
-from . import io, measure, models, system, theory, train, worlds
+from . import checkpoint, io, measure, models, system, theory, train, worlds
 from .config import DEFAULT, Settings, override
 from .measure import (
     Trajectory,
@@ -79,5 +80,6 @@ __all__ = [
     "measure",
     "train",
     "theory",
+    "checkpoint",
     "io",
 ]

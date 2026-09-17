@@ -44,7 +44,7 @@ def main():
     print("Figure 2 at-risk restriction, checked against every stored cell")
     shared = differ = exact = wrong = 0
     for depth in (1, 2, 3):
-        files = sorted(glob.glob(os.path.join(RESULTS, "f2",
+        files = sorted(glob.glob(os.path.join(glob.escape(RESULTS), "f2",
                                               "w*_d%d_[AB].json" % depth)))
         if not files:
             continue

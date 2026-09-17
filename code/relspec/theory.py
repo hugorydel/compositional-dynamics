@@ -44,12 +44,17 @@ def shallow_trajectory(
     eval_every=None,
     probes=None,
     plan=None,
+    start=0,
 ) -> Trajectory:
+    """Evaluations at `start`, at every multiple of `eval_every` after it, and
+    at `epochs`, each computed directly from `E0`, the state at epoch 0 of the
+    phase.  Continuing a phase from `start` therefore reproduces an
+    uninterrupted run exactly."""
     every = settings.eval_every if eval_every is None else eval_every
     decay_base = 1.0 - lr * system.evals_M
     coef0 = system.Q.T @ (E0 - system.Estar)
 
-    ts = list(range(0, epochs + 1, every))
+    ts = [start] + list(range(every * (start // every + 1), epochs + 1, every))
     if ts[-1] != epochs:
         ts.append(epochs)
     Es = (system.Estar + system.Q @ ((decay_base**t)[:, None] * coef0) for t in ts)
@@ -185,6 +190,7 @@ def predict(
     eval_every=None,
     probes=None,
     plan=None,
+    start=0,
 ):
     """Prospective trajectory at any depth.
 
@@ -192,17 +198,28 @@ def predict(
     weight matrices (N > 1).  Returns `(Trajectory | None, final_state)`, where
     the final state can be fed straight back in as `init` for a second curriculum
     phase.
+
+    `start` continues a phase that stopped at that epoch, which must sit on the
+    evaluation grid.  At depth 1 `init` is still the phase's STARTING state,
+    since the closed form evaluates every epoch from there; at depth > 1 it is
+    the integrated state at `start`.  Either way the result reproduces an
+    uninterrupted run exactly (tests/check_checkpoint.py).
     """
     if depth == 1:
         E0 = init.embedding() if hasattr(init, "embedding") else np.asarray(init)
         traj = shallow_trajectory(
-            system, lr, epochs, E0, settings, eval_every, probes=probes, plan=plan
+            system, lr, epochs, E0, settings, eval_every, probes=probes, plan=plan,
+            start=start,
         )
         return traj, traj_end_embedding(system, lr, epochs, E0)
     Ws0 = init.W if hasattr(init, "W") else [np.asarray(w) for w in init]
-    return deep_trajectory(
-        system, lr, epochs, Ws0, depth, settings, eval_every, probes=probes, plan=plan
+    traj, Wend = deep_trajectory(
+        system, lr, epochs - start, Ws0, depth, settings, eval_every, probes=probes,
+        plan=plan,
     )
+    if traj is not None:
+        traj.epochs = traj.epochs + start
+    return traj, Wend
 
 
 def traj_end_embedding(system: System, lr, epochs, E0):

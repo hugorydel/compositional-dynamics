@@ -55,7 +55,7 @@ def load_all(name, pattern="*.json", require=None):
     import glob
 
     out = []
-    for p in sorted(glob.glob(os.path.join(results_dir(name), pattern))):
+    for p in sorted(glob.glob(os.path.join(glob.escape(results_dir(name)), pattern))):
         r = load(p)
         if require is not None and (not isinstance(r, dict) or require not in r):
             raise ValueError(

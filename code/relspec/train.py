@@ -36,14 +36,24 @@ def train(
     eval_every=None,
     probes=None,
     plan=None,
+    start=0,
+    rng_state=None,
 ) -> Trajectory:
-    """Train `model` on `system`, recording a `Trajectory`.
+    """Train `model` on `system` up to epoch `epochs`, recording a `Trajectory`.
 
     probes : {name: v}  with `v` a (P,) vector; records `v^T E(t)` per evaluation.
     plan   : a measurement plan, or None to record probes and loss only.
+    start, rng_state :
+             continue a run that stopped at epoch `start`, holding the weights
+             it stopped with, with its order generator restored from
+             `rng_state` (see `relspec.checkpoint`).  Evaluations stay on the
+             multiples of `eval_every` an uninterrupted run uses, and the
+             trajectory returned carries the generator's state at the end.
     """
     every = settings.eval_every if eval_every is None else eval_every
     rng = np.random.default_rng(order_seed)
+    if rng_state is not None:
+        rng.bit_generator.state = rng_state
     sparse = system.sparse() if mode == "sgd" else None
 
     names = plan["names"] if plan else []
@@ -70,8 +80,8 @@ def train(
         for k, v in (probes or {}).items():
             probe_rec[k].append(np.asarray(v @ E).copy())
 
-    record(0)
-    for ep in range(1, epochs + 1):
+    record(start)
+    for ep in range(start + 1, epochs + 1):
         if mode == "sgd":
             model.sgd_epoch(sparse, system.C, lr, rng)
         else:
@@ -90,6 +100,7 @@ def train(
         },
         loss=np.asarray(losses, float),
         probes={k: np.asarray(v) for k, v in probe_rec.items()},
+        rng_state=rng.bit_generator.state,
     )
 
 

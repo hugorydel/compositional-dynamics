@@ -46,7 +46,7 @@ from relspec import System, models, worlds  # noqa: E402
 from relspec.config import override  # noqa: E402
 from relspec.measure import apply_plan, detect_emergence, law_plan  # noqa: E402
 
-BUDGET = worlds.F1_EPOCHS[1]
+BUDGET = 10000      # the budget this was measured against, before depth 1 was extended
 EVERY = worlds.F1_EVERY[1]
 FAR, RATIO = 1e8, 1.05
 N_WORLDS = 200

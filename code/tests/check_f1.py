@@ -40,7 +40,7 @@ def below(ep, v, thr):
 
 
 for depth in (1, 2, 3):
-    files = sorted(glob.glob(os.path.join(RESULTS, "f1", "w*_d%d.json" % depth)))
+    files = sorted(glob.glob(os.path.join(glob.escape(RESULTS), "f1", "w*_d%d.json" % depth)))
     if not files:
         print("N=%d  no cells" % depth)
         continue

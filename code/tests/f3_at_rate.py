@@ -10,8 +10,8 @@ This produces the whole figure on that footing: both arms, all three depths,
 written in the record format `fig3.py` reads, into `results/f3_lr<rate>/`.  The
 main results are not touched, and the panels are rendered to their own file.
 
-Three things keep the cost of a fine step off the parts that do not need it,
-all measured by `check_cost.py`:
+Four things keep the cost of a fine step off the parts that do not need it,
+the first three measured by `check_cost.py`:
 
   substeps      the integrator's accuracy is set by `lr / substeps`, not by the
                 count, so a rate ten times smaller is already ten times finer
@@ -33,12 +33,16 @@ all measured by `check_cost.py`:
   processes     cells are independent, so they run in a pool, as in the main
                 runner.
 
+  checkpoints   every cell saves its state beside its record, under
+                `results/checkpoints/f3_lr<rate>/`, so a longer window or a
+                later switch continues the stored cell rather than re-running
+                it (`run_experiments.staged`).
+
   usage:  python f3_at_rate.py 0.003
           python f3_at_rate.py 0.01 0.003 --seeds 0 1 2 3 4
           python f3_at_rate.py 0.003 --nproc 4
 """
 
-import copy
 import json
 import os
 import sys
@@ -48,17 +52,16 @@ from multiprocessing import Pool
 import _boot  # noqa: F401
 import _paths  # noqa: F401
 from _paths import RESULTS
-from relspec import System, models, theory, train, worlds
+from relspec import System, worlds
 from relspec.config import DEFAULT, override
 from relspec.measure import cross_plan
-from run_experiments import REQUIRED, join, save, series
+from run_experiments import REQUIRED, ckpt_path, save, staged
 
 import fig3
 
 BASE = 0.03         # the rate the pre-switch phase runs at, and the time unit
 WINDOW = 4000       # rescaled epochs after the fact
 DEPTHS = (1, 2, 3)
-ORDER_SEED = 7
 NPROC = 12
 
 
@@ -72,7 +75,7 @@ def substeps_for(depth, rate):
 
 
 def run(seed, depth, rate):
-    """`run_experiments.run_f3` with a two-rate schedule.
+    """`run_experiments.run_f3` at another rate, with every budget rescaled.
 
     Kept separate rather than threading a rate through the locked runner: the
     figures in the paper all use one step size, and that property is easier to
@@ -90,26 +93,9 @@ def run(seed, depth, rate):
     s0, s1 = System.build(w0, settings=S), System.build(w1, settings=S)
     plan = cross_plan(w1, worlds.held_cross(w0, reference=w1))
     lr = s0.lr(depth, target=rate, settings=S)
-
-    m = models.make_model(w0, depth, S)
-    a = train.train(m, s0, lr, t1, S, order_seed=ORDER_SEED,
-                    eval_every=every, plan=plan)
-    ta, st = theory.predict(s0, depth, lr, t1, models.make_model(w0, depth, S),
-                            settings=S, eval_every=every, plan=plan)
-
-    arms = {}
-    for name, sy in (("hold", s0), ("insert", s1)):
-        mm = copy.deepcopy(m)
-        b = train.train(mm, sy, lr, t2, S, order_seed=ORDER_SEED + 1,
-                        eval_every=every, plan=plan)
-        tb, _ = theory.predict(sy, depth, lr, t2, st, settings=S,
-                               eval_every=every, plan=plan)
-        arms[name] = dict(net=join(series(a, True), series(b, True), t1),
-                          pred=join(series(ta, True), series(tb, True), t1))
-    return dict(figure="f3", seed=seed, depth=depth, t_switch=t1,
-                epochs_max=t1 + t2, lr_target=rate, window=WINDOW,
-                substeps=S.substeps(depth), init_seed=S.init_seed,
-                order_seed=ORDER_SEED, n_pairs=len(plan["a"]), arms=arms)
+    extra = dict(window=WINDOW, substeps=S.substeps(depth), n_pairs=len(plan["a"]))
+    return staged("f3", seed, depth, S, w0, s0, s1, plan, lr, rate, t1, t2, True,
+                  extra, path_for(seed, depth, rate), ckpt_path(tag(rate), seed, depth))
 
 
 def done(seed, depth, rate):

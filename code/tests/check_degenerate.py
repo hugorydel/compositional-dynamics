@@ -73,7 +73,7 @@ def figure2():
             else:
                 dist_ok.append(dd.mean())
     obs = set()
-    for f in glob.glob(os.path.join(RESULTS, "f2", "w*_d1_[AB].json")):
+    for f in glob.glob(os.path.join(glob.escape(RESULTS), "f2", "w*_d1_[AB].json")):
         r = json.load(open(f))
         if int(fig2.at_risk(r, r["open"]).sum()) < 2 and r["seed"] in SEEDS:
             obs.add((r["seed"], r["closed"]))

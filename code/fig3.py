@@ -255,7 +255,7 @@ def world_set(sub):
     few extra cells changes nothing about what is drawn.
     """
     have = {d: {seed_of(f): f for f in glob.glob(
-                os.path.join(RESULTS, sub, "w*_d%d.json" % d))} for d in DEPTHS}
+                os.path.join(glob.escape(RESULTS), sub, "w*_d%d.json" % d))} for d in DEPTHS}
     common = sorted(set.intersection(*(set(v) for v in have.values())))
     good, bad = [], []
     for s in common:

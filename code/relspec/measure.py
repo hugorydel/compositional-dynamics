@@ -299,6 +299,7 @@ class Trajectory:
     errs: dict = field(default_factory=dict)  # name -> (T, n) or None
     loss: np.ndarray = None
     probes: dict = field(default_factory=dict)  # name -> (T, ...) array
+    rng_state: dict = None  # order generator at the end; training only
 
     def emergence(self, settings: Settings = DEFAULT, level=100.0):
         """`{name: t* in epochs}`, NaN where it never emerged."""

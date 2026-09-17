@@ -16,6 +16,15 @@ initialisation across worlds would make the laws within a world non-independent
 and shrink the effective sample to the number of initialisations rather than
 the number of worlds.
 
+Every cell also saves a checkpoint, the weights and generator state it ended
+with, under `results/checkpoints/` (`relspec.checkpoint`).  A cell whose budget
+is raised continues from its checkpoint instead of starting again: Figure 1
+from the end of its run, Figures 2 and 3 from the end of their branches, or
+from the switch when the switch moves later.  Figure 1 cells also save every
+10,000 epochs, so an interrupted long run loses at most that much.  A
+continued cell is identical to one run straight through
+(tests/check_checkpoint.py).
+
   usage:  python run_experiments.py plan            what would run
           python run_experiments.py run 0           world 0, all figures
           python run_experiments.py run 0 1 2       worlds 0, 1, 2
@@ -40,7 +49,7 @@ from multiprocessing import Pool  # noqa: E402
 import _paths  # noqa: F401, E402
 import numpy as np  # noqa: E402
 from _paths import RESULTS
-from relspec import System, models, theory, train, worlds  # noqa: E402
+from relspec import System, checkpoint, models, theory, train, worlds  # noqa: E402
 from relspec.config import override  # noqa: E402
 from relspec.measure import cross_plan, law_plan  # noqa: E402
 
@@ -159,21 +168,59 @@ def join(a, b, t1):
 #  Figure 1: unstaged, one run per depth                                       #
 # --------------------------------------------------------------------------- #
 
-def run_f1(seed, depth):
+F1_CHUNK = 10000   # epochs between saves of a Figure 1 cell
+
+
+def run_f1(seed, depth, epochs=None, chunk=F1_CHUNK, rec_path=None, ck=None):
+    """One Figure 1 cell, saved with its checkpoint every `chunk` epochs.
+
+    A cell whose record and checkpoint stop short of the budget, under the
+    same settings, continues from where they stop: raising the budget costs
+    only the new epochs, and an interrupted cell loses at most one chunk.
+    `epochs`, `rec_path` and `ck` default to the figure's budget and paths.
+    """
     S = settings_for(seed, worlds.F1_EVERY[depth])
-    ep = worlds.F1_EPOCHS[depth]
+    target = worlds.F1_EPOCHS[depth] if epochs is None else epochs
+    rec_path = rec_path or cell_path("f1", seed, depth)
+    ck = ck or ckpt_path("f1", seed, depth)
     w = worlds.emergence_world(seed)
     s = System.build(w, settings=S)
     plan = law_plan(w, worlds.held_composites(w))
     lr = s.lr(depth, settings=S)
-    order = f1_order(seed)
-    obs = train.train(models.make_model(w, depth, S), s, lr, ep, S,
-                      order_seed=order, eval_every=S.eval_every, plan=plan)
-    pre, _ = theory.predict(s, depth, lr, ep, models.make_model(w, depth, S),
-                            settings=S, eval_every=S.eval_every, plan=plan)
-    return dict(figure="f1", seed=seed, depth=depth, epochs_max=ep,
-                lr_target=S.lr_target, init_seed=S.init_seed,
-                order_seed=order, net=series(obs), pred=series(pre))
+    order, every = f1_order(seed), S.eval_every
+    meta = dict(figure="f1", seed=seed, depth=depth, arm=None, lr_target=S.lr_target,
+                init_seed=S.init_seed, order_seed=order, eval_every=every,
+                substeps=S.substeps(depth))
+
+    net = models.make_model(w, depth, S)
+    # depth 1: the closed form's starting state; deeper: the integrator's state
+    pred = [net.embedding().copy()] if depth == 1 else [x.copy() for x in net.W]
+    start, rng, net_ser, pred_ser = 0, None, None, None
+    rec, ph = resumable(rec_path, ck, meta)
+    if (rec is not None and ph["run"]["epochs"] == rec["epochs_max"] <= target
+            and rec["epochs_max"] % every == 0):
+        start, rng = rec["epochs_max"], ph["run"]["rng"]
+        checkpoint.restore(net, ph["run"]["net"])
+        pred, net_ser, pred_ser = ph["run"]["pred"], rec["net"], rec["pred"]
+
+    while start < target:
+        end = min(target, start + chunk)
+        obs = train.train(net, s, lr, end, S, order_seed=order, eval_every=every,
+                          plan=plan, start=start, rng_state=rng)
+        tp, st = theory.predict(s, depth, lr, end, pred[0] if depth == 1 else pred,
+                                settings=S, eval_every=every, plan=plan, start=start)
+        net_ser = series(obs) if net_ser is None else join(net_ser, series(obs), 0)
+        pred_ser = series(tp) if pred_ser is None else join(pred_ser, series(tp), 0)
+        rng, start = obs.rng_state, end
+        if depth > 1:
+            pred = st
+        rec = dict(figure="f1", seed=seed, depth=depth, epochs_max=end,
+                   lr_target=S.lr_target, init_seed=S.init_seed,
+                   order_seed=order, net=net_ser, pred=pred_ser)
+        checkpoint.save(ck, {"run": dict(epochs=end, net=checkpoint.weights(net),
+                                         rng=rng, pred=pred)}, meta)
+        save(rec_path, rec)
+    return rec
 
 
 # --------------------------------------------------------------------------- #
@@ -201,35 +248,18 @@ def run_f2(seed, depth, closed):
     # evaluation set from the POST-intervention world, so it cannot move
     plan = law_plan(w1, worlds.held_composites(w0, reference=w1))
     lr = s0.lr(depth, settings=S)
-
-    m = models.make_model(w0, depth, S)
-    a = train.train(m, s0, lr, t1, S, order_seed=ORDER_SEED,
-                    eval_every=S.eval_every, plan=plan)
-    ta, st = theory.predict(s0, depth, lr, t1, models.make_model(w0, depth, S),
-                            settings=S, eval_every=S.eval_every, plan=plan)
-
-    arms = {}
-    for name, sy in (("hold", s0), ("insert", s1)):
-        mm = copy.deepcopy(m)  # both branches leave the SAME pre-switch state
-        b = train.train(mm, sy, lr, t2, S, order_seed=ORDER_SEED + 1,
-                        eval_every=S.eval_every, plan=plan)
-        tb, _ = theory.predict(sy, depth, lr, t2, st, settings=S,
-                               eval_every=S.eval_every, plan=plan)
-        arms[name] = dict(net=join(series(a, False), series(b, False), t1),
-                          pred=join(series(ta, False), series(tb, False), t1))
-    return dict(figure="f2", seed=seed, depth=depth, closed=closed,
-                open="B" if closed == "A" else "A", t_switch=t1,
-                # accuracy of the best constant answer, per law.  The figure
-                # rescales by it so an undetermined law cannot be credited for
-                # the items whose target happens to be the entity it returns to
-                # everything.  Stored rather than recomputed, because it is a
-                # property of the evaluation set this cell actually used.
-                chance={n: float(plan[n]["chance"]) for n in plan["names"]},
-                epochs_max=t1 + t2, lr_target=S.lr_target,
-                init_seed=S.init_seed, order_seed=ORDER_SEED,
-                rho_before={l.name: float(s0.identifiability(l, S)["rho"])
-                            for l in w0.laws},
-                arms=arms)
+    extra = dict(
+        closed=closed, open="B" if closed == "A" else "A",
+        # accuracy of the best constant answer, per law.  The figure
+        # rescales by it so an undetermined law cannot be credited for
+        # the items whose target happens to be the entity it returns to
+        # everything.  Stored rather than recomputed, because it is a
+        # property of the evaluation set this cell actually used.
+        chance={n: float(plan[n]["chance"]) for n in plan["names"]},
+        rho_before={l.name: float(s0.identifiability(l, S)["rho"]) for l in w0.laws})
+    return staged("f2", seed, depth, S, w0, s0, s1, plan, lr, S.lr_target, t1, t2,
+                  False, extra, cell_path("f2", seed, depth, closed),
+                  ckpt_path("f2", seed, depth, closed), arm=closed)
 
 
 # --------------------------------------------------------------------------- #
@@ -242,30 +272,133 @@ def run_f3(seed, depth):
     w0 = worlds.integration_world(seed, link=False)
     w1 = worlds.integration_world(seed, link=True)
     s0, s1 = System.build(w0, settings=S), System.build(w1, settings=S)
-    pairs = worlds.held_cross(w0, reference=w1)
-    plan = cross_plan(w1, pairs)
+    plan = cross_plan(w1, worlds.held_cross(w0, reference=w1))
     lr = s0.lr(depth, settings=S)
+    return staged("f3", seed, depth, S, w0, s0, s1, plan, lr, S.lr_target, t1, t2,
+                  True, dict(n_pairs=len(plan["a"])), cell_path("f3", seed, depth),
+                  ckpt_path("f3", seed, depth))
+
+
+# --------------------------------------------------------------------------- #
+#  Checkpoints, and the staged run Figures 2 and 3 share                       #
+# --------------------------------------------------------------------------- #
+
+CKPT = os.path.join(RESULTS, "checkpoints")
+
+
+def ckpt_path(sub, seed, depth, arm=None):
+    """A cell's checkpoint: `results/checkpoints/<sub>/`, named as its record."""
+    name = "w%02d_d%d" % (seed, depth) + ("_%s" % arm if arm else "") + ".npz"
+    return os.path.join(CKPT, sub, name)
+
+
+def resumable(rec_path, ck, meta):
+    """The stored record and checkpoint of a cell, when both exist and were
+    made under exactly `meta`; otherwise `(None, None)`, and the cell starts
+    again from epoch 0."""
+    if not (os.path.exists(rec_path) and os.path.exists(ck)):
+        return None, None
+    phases, stored = checkpoint.load(ck)
+    if phases is None or stored != meta:
+        return None, None
+    try:
+        with open(rec_path) as f:
+            return json.load(f), phases
+    except (ValueError, OSError):
+        return None, None
+
+
+def head(ser, t):
+    """A stored series up to and including epoch `t`: the pre-switch part of a
+    staged arm."""
+    k = int(np.searchsorted(np.asarray(ser["epochs"], float), t, side="right"))
+    out = dict(epochs=ser["epochs"][:k])
+    for key in ("retrieval", "rank", "geometric", "hits"):
+        if key in ser:
+            out[key] = {n: v[:k] for n, v in ser[key].items()}
+    if "errs" in ser:
+        out["errs"] = {n: (None if v is None else v[:k]) for n, v in ser["errs"].items()}
+    return out
+
+
+def staged(fig, seed, depth, S, w0, s0, s1, plan, lr, lr_target, t1, t2, items,
+           extra, rec_path, ck, arm=None):
+    """One staged cell: a pre-switch run on `s0` to epoch `t1`, then two
+    branches from its state for `t2` epochs, `hold` on `s0` and `insert` on
+    `s1`.  Saves the record and its checkpoint.
+
+    Continues from the cell's record and checkpoint when they were made under
+    the same settings.  A later switch continues the pre-switch run and runs
+    both branches afresh from the new switch, since they must leave the new
+    state; the same switch with a longer window continues each branch.
+    Anything else starts again.  `items` keeps per-item errors in the record;
+    `extra` holds the figure's own record fields.
+    """
+    every = S.eval_every
+    assert t1 % every == 0 and t2 % every == 0, "budgets must sit on the evaluation grid"
+    meta = dict(figure=fig, seed=seed, depth=depth, arm=arm, lr_target=lr_target,
+                init_seed=S.init_seed, order_seed=ORDER_SEED, eval_every=every,
+                substeps=S.substeps(depth))
 
     m = models.make_model(w0, depth, S)
-    a = train.train(m, s0, lr, t1, S, order_seed=ORDER_SEED,
-                    eval_every=S.eval_every, plan=plan)
-    ta, st = theory.predict(s0, depth, lr, t1, models.make_model(w0, depth, S),
-                            settings=S, eval_every=S.eval_every, plan=plan)
+    pre_pred = [m.embedding().copy()] if depth == 1 else [x.copy() for x in m.W]
+    start, rng, net0, pred0 = 0, None, None, None
+    rec, ph = resumable(rec_path, ck, meta)
+    if rec is not None and not ph["pre"]["epochs"] == rec["t_switch"] <= t1:
+        rec = None
+    if rec is not None:
+        start, rng, pre_pred = rec["t_switch"], ph["pre"]["rng"], ph["pre"]["pred"]
+        checkpoint.restore(m, ph["pre"]["net"])
+        net0 = head(rec["arms"]["hold"]["net"], start)
+        pred0 = head(rec["arms"]["hold"]["pred"], start)
 
+    if start < t1:
+        a = train.train(m, s0, lr, t1, S, order_seed=ORDER_SEED, eval_every=every,
+                        plan=plan, start=start, rng_state=rng)
+        ta, st = theory.predict(s0, depth, lr, t1, pre_pred[0] if depth == 1 else pre_pred,
+                                settings=S, eval_every=every, plan=plan, start=start)
+        net0 = series(a, items) if net0 is None else join(net0, series(a, items), 0)
+        pred0 = series(ta, items) if pred0 is None else join(pred0, series(ta, items), 0)
+        rng = a.rng_state
+        if depth > 1:
+            pre_pred = st
+        rec = None                  # the branches must leave the new state
+    else:
+        st = theory.traj_end_embedding(s0, lr, t1, pre_pred[0]) if depth == 1 else pre_pred
+
+    phases = {"pre": dict(epochs=t1, net=checkpoint.weights(m), rng=rng, pred=pre_pred)}
     arms = {}
     for name, sy in (("hold", s0), ("insert", s1)):
-        mm = copy.deepcopy(m)  # both branches leave the SAME pre-switch state
-        b = train.train(mm, sy, lr, t2, S, order_seed=ORDER_SEED + 1,
-                        eval_every=S.eval_every, plan=plan)
-        tb, _ = theory.predict(sy, depth, lr, t2, st, settings=S,
-                               eval_every=S.eval_every, plan=plan)
-        arms[name] = dict(
-            net=join(series(a, True), series(b, True), t1),
-            pred=join(series(ta, True), series(tb, True), t1))
-    return dict(figure="f3", seed=seed, depth=depth, t_switch=t1,
-                epochs_max=t1 + t2, lr_target=S.lr_target,
-                init_seed=S.init_seed, order_seed=ORDER_SEED,
-                n_pairs=len(plan["a"]), arms=arms)
+        old = None if rec is None else rec["epochs_max"] - rec["t_switch"]
+        if old is not None and old <= t2 and ph[name]["epochs"] == old:
+            mm = checkpoint.restore(models.make_model(w0, depth, S), ph[name]["net"])
+            b0, rng_b, arm_pred = old, ph[name]["rng"], ph[name]["pred"]
+            net_b, pred_b = rec["arms"][name]["net"], rec["arms"][name]["pred"]
+        else:
+            mm = copy.deepcopy(m)   # both branches leave the SAME pre-switch state
+            b0, rng_b = 0, None
+            arm_pred = [st] if depth == 1 else [x.copy() for x in st]
+            net_b, pred_b = net0, pred0
+        if b0 < t2:
+            b = train.train(mm, sy, lr, t2, S, order_seed=ORDER_SEED + 1,
+                            eval_every=every, plan=plan, start=b0, rng_state=rng_b)
+            tb, wend = theory.predict(sy, depth, lr, t2,
+                                      arm_pred[0] if depth == 1 else arm_pred,
+                                      settings=S, eval_every=every, plan=plan, start=b0)
+            net_b = join(net_b, series(b, items), t1)
+            pred_b = join(pred_b, series(tb, items), t1)
+            rng_b = b.rng_state
+            if depth > 1:
+                arm_pred = wend
+        arms[name] = dict(net=net_b, pred=pred_b)
+        phases[name] = dict(epochs=t2, net=checkpoint.weights(mm), rng=rng_b, pred=arm_pred)
+
+    out = dict(figure=fig, seed=seed, depth=depth, t_switch=t1, epochs_max=t1 + t2,
+               lr_target=lr_target, init_seed=S.init_seed, order_seed=ORDER_SEED,
+               **extra, arms=arms)
+    checkpoint.save(ck, phases, meta)
+    save(rec_path, out)
+    return out
 
 
 # --------------------------------------------------------------------------- #

@@ -60,7 +60,7 @@ def load():
     data = {}
     for d in DEPTHS:
         files = {seed_of(f): f for f in
-                 glob.glob(os.path.join(RESULTS, "f1", "w*_d%d.json" % d))}
+                 glob.glob(os.path.join(glob.escape(RESULTS), "f1", "w*_d%d.json" % d))}
         seeds = sorted(files)[:N_WORLDS]
         if len(seeds) < N_WORLDS:
             raise SystemExit("Figure 1 has %d worlds at N=%d, not %d"
@@ -88,22 +88,21 @@ def load():
 
 
 def emergence(data):
-    ep = data[1]["ep"]
-    step, budget = ep[1] - ep[0], ep[-1]
     return (["**Emergence, network against prediction** (the same t* criterion "
              "for both)"]
             + ["- N=%d: %s" % (d, timing_line(data[d]["tn"].ravel(), data[d]["tp"].ravel(),
-                                              step, "the law emerges within %s epochs"
-                                              % commas(budget), "law-worlds"))
+                                              data[d]["ep"][1] - data[d]["ep"][0],
+                                              "the law emerges within %s epochs"
+                                              % commas(data[d]["ep"][-1]), "law-worlds"))
                for d in DEPTHS])
 
 
 def law_spread(data):
     """Descriptive only: the ladder was built so the laws differ, so the
     question is by how much, not whether."""
-    budget = data[1]["ep"][-1]
     ranges = []
     for d in DEPTHS:
+        budget = data[d]["ep"][-1]
         tn = data[d]["tn"]
         med = np.median(np.where(np.isfinite(tn), tn, np.inf), axis=0)
         fin = med[np.isfinite(med)]
@@ -119,8 +118,9 @@ def law_spread(data):
 
 def trajectories(data):
     """Report lines, and the lowest law-world R² as diagnostic lines."""
-    out = ["**Supporting: whole trajectories** (each law in each world separately, "
-           "0 to %s epochs)" % commas(data[1]["ep"][-1])]
+    out = ["**Supporting: whole trajectories** (each law in each world separately; "
+           "%s)" % "; ".join("N=%d: 0 to %s epochs" % (d, commas(data[d]["ep"][-1]))
+                              for d in DEPTHS)]
     diag = []
     for key, label, tf in (("acc", "Held-out accuracy", np.asarray),
                            ("geo", "Geometric error (log10)", lg)):

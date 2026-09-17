@@ -72,7 +72,7 @@ def cells(depth, worlds=None):
     same code path draws one world and several, so a difference between the
     two renders is the data and not the plotting.
     """
-    f = sorted(glob.glob(os.path.join(RESULTS, "f1", "w*_d%d.json" % depth)))
+    f = sorted(glob.glob(os.path.join(glob.escape(RESULTS), "f1", "w*_d%d.json" % depth)))
     if worlds is None:
         return f
     keep = {"w%02d_d%d.json" % (w, depth) for w in worlds}

@@ -365,7 +365,16 @@ Z_FRAC = 0.25
 # only: the base is now private per law (see `emergence_world`), so they are
 # re-measured rather than assumed.  A law slower than the budget is recorded as
 # not emerged rather than silently dropped.
-F1_EPOCHS = {1: 10000, 2: 10000, 3: 10000}
+#
+# Depth 1 now runs to 80,000.  At 10,000 epochs, 1,075 of its 3,200 law-worlds
+# had no t*, in the network and the prediction alike, and five laws had no
+# median.  The closed form carried past the budget (tests/f1_horizon.py) put
+# the slowest predicted t* at 71,250 epochs, with every law-world emerged by
+# then; 80,000 clears that and its 250-epoch hold by about 12 per cent.  Depths
+# 2 and 3 keep 10,000: every one of their law-worlds emerges well inside it, so
+# a longer budget there would change no t* and the depth comparison is not a
+# budget comparison.
+F1_EPOCHS = {1: 80000, 2: 10000, 3: 10000}
 F1_EVERY = {1: 25, 2: 25, 3: 25}
 
 # The three laws Figure 1 draws.  ONE fixed triple, applied identically to
