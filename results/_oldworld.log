@@ -1,9 +1,0 @@
-retired world, seed 200: 15 cross comparisons, 8 facts, lam_max 7.3576
-  new mode 0.0029331, next slowest 0.34594, a factor 117.9 larger
-
-  N=1  within-chain error at the switch: network 3.78e-02
-        after the bridge: alpha  1.005 | rms at alpha=1  0.015 ->  0.002 | end network 0.0008337 predicted 0.000852
-  N=2  within-chain error at the switch: network 1.26e-03
-        after the bridge: alpha  1.120 | rms at alpha=1  0.292 ->  0.165 | end network 3.535e-06 predicted 5.977e-06
-  N=3  within-chain error at the switch: network 2.12e-03
-        after the bridge: alpha  0.871 | rms at alpha=1  0.137 ->  0.057 | end network 0.000176 predicted 0.0001628

@@ -73,29 +73,29 @@ def main():
     print("seed %d.  naive = prefix/suffix products rebuilt per call" % SEED)
     for fig in figs:
         for depth in (2, 3):
-        S = override(init_seed=1000 + SEED)
-        w = world_for(fig)
-        s = System.build(w, settings=S)
-        lr = s.lr(depth, settings=S)
-        Ws0 = models.make_model(w, depth, S).W
-        ep, sub = EPOCHS[fig][depth], S.substeps(depth)
-        args = (Ws0, s.A, s.C, lr, ep, 10, sub)
+            S = override(init_seed=1000 + SEED)
+            w = world_for(fig)
+            s = System.build(w, settings=S)
+            lr = s.lr(depth, settings=S)
+            Ws0 = models.make_model(w, depth, S).W
+            ep, sub = EPOCHS[fig][depth], S.substeps(depth)
+            args = (Ws0, s.A, s.C, lr, ep, 10, sub)
 
-        out = {}
-        for name, rhs in (("naive", naive_rhs), ("current", theory.ode_rhs)):
-            t0 = time.perf_counter()
-            out[name] = integrate_with(rhs, *args)
-            out[name + "_t"] = time.perf_counter() - t0
+            out = {}
+            for name, rhs in (("naive", naive_rhs), ("current", theory.ode_rhs)):
+                t0 = time.perf_counter()
+                out[name] = integrate_with(rhs, *args)
+                out[name + "_t"] = time.perf_counter() - t0
 
-        d = float(np.abs(out["naive"] - out["current"]).max())
-        scale = float(np.abs(out["naive"]).max())
-        print("  %s N=%d  %d epochs x %d substeps = %d rhs calls"
-              % (fig.upper(), depth, ep, sub, 4 * ep * sub))
-        print("     agreement  max |diff| %.3e against max |E| %.3f  "
-              "(relative %.1e)" % (d, scale, d / scale))
-        print("     speed      naive %6.2fs   current %6.2fs   %.2fx"
-              % (out["naive_t"], out["current_t"],
-                 out["naive_t"] / out["current_t"]), flush=True)
+            d = float(np.abs(out["naive"] - out["current"]).max())
+            scale = float(np.abs(out["naive"]).max())
+            print("  %s N=%d  %d epochs x %d substeps = %d rhs calls"
+                  % (fig.upper(), depth, ep, sub, 4 * ep * sub))
+            print("     agreement  max |diff| %.3e against max |E| %.3f  "
+                  "(relative %.1e)" % (d, scale, d / scale))
+            print("     speed      naive %6.2fs   current %6.2fs   %.2fx"
+                  % (out["naive_t"], out["current_t"],
+                     out["naive_t"] / out["current_t"]), flush=True)
 
 
 if __name__ == "__main__":
