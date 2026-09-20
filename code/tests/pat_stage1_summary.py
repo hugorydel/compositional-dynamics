@@ -1,6 +1,6 @@
 """E1 and E2 across all 200 Experiment 3 worlds, from the completed control pass.
 
-`pat_stage1_controls.py` replayed every cell and stored per-item scores; this
+`analysis/controls.py` replayed every cell and stored per-item scores; this
 turns them into the two answers the revision needs.
 
   E1  retrieval against all 18 entities beside the nine destination entities:
@@ -31,7 +31,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 from style import DARK, panel  # noqa: E402
 
-OUT = Path(RESULTS) / "_pat_stage1"
+OUT = Path(RESULTS) / "f3"
 DEPTHS = (1, 2, 3)
 ARMS = (("hold", "#c0392b", "No linking fact"), ("insert", "#1b6ca8", "One linking fact"))
 DASHED = (0, (2.2, 2.0))
@@ -40,8 +40,8 @@ DASHED = (0, (2.2, 2.0))
 def load_depth(depth):
     """Every world's scores at one depth, stacked on a shared epoch grid."""
     cells, epochs = {}, None
-    for path in sorted(OUT.glob("f3_lr0p003_w*_d%d.npz" % depth)):
-        seed = int(path.stem.split("_")[2][1:])
+    for path in sorted(OUT.glob("controls_w*_d%d.npz" % depth)):
+        seed = int(path.stem.split("_")[-2][1:])
         with np.load(path) as z:
             data = {k: z[k] for k in z.files if not k.startswith("pre.")}
         if epochs is None:
@@ -182,7 +182,7 @@ def figures(data, summary):
         Line2D([], [], color=DARK, lw=1.2, ls=DASHED, label="All 18 candidates")]
     fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, 0.12), ncol=4,
                handletextpad=0.6, columnspacing=1.8, handlelength=1.8)
-    p1 = OUT / "summary_e1_candidate_pool.png"
+    p1 = OUT / "diagnostic_e1_candidate_pool.png"
     fig.savefig(p1, bbox_inches="tight", dpi=200)
     plt.close(fig)
 
@@ -216,7 +216,7 @@ def figures(data, summary):
         panel(ax, "def"[col], dx=-0.24 if col == 0 else -0.08, dy=1.12)
         for row in (0, 1):
             axes[row][col].set_xscale("log")
-    p2 = OUT / "summary_e2_retention.png"
+    p2 = OUT / "diagnostic_e2_retention.png"
     fig.savefig(p2, bbox_inches="tight", dpi=200)
     plt.close(fig)
     for p in (p1, p2):

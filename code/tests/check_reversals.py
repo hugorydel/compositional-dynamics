@@ -90,8 +90,11 @@ def figure2():
 
 
 def figure3():
+    # the records store hits against the nine destination candidates;
+    # fig3 now draws the full eighteen-candidate pool from the replay
+    # pass, so this measures reversals in the records, not in the panel
     print("Figure 3, after the link, measure %r" % fig3.MEASURE)
-    seeds, _, have = fig3.world_set("f3_lr0p003")
+    seeds, _, have = fig3.world_set("f3")
     for d in DEPTHS:
         c = {(a, s): [] for a in ("hold", "insert") for s in ("net", "pred")}
         for seed in seeds:

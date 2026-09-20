@@ -1,6 +1,6 @@
 """Five questions about the Stage 1 replays, answered from the saved cells.
 
-Nothing is trained here; `pat_stage1_controls.py` produces the cells and this
+Nothing is trained here; `analysis/controls.py` produces the cells and this
 reads them.
 
   D1  the retention dip is a staircase.  Is that only the item count, and does
@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 from style import DARK, panel  # noqa: E402
 
-OUT = Path(RESULTS) / "_pat_stage1"
+OUT = Path(RESULTS) / "f3"
 ARMS = (("hold", "#c0392b", "No linking fact"), ("insert", "#1b6ca8", "One linking fact"))
 DASHED = (0, (2.2, 2.0))
 
@@ -44,11 +44,11 @@ def load(stem):
 
 
 def f3(seed, depth):
-    return "f3_lr0p003_w%02d_d%d" % (seed, depth)
+    return "controls_w%02d_d%d" % (seed, depth)
 
 
 def f2(seed, depth):
-    return "f2_w%02d_d%d_A" % (seed, depth)
+    return "../f2/controls_w%02d_d%d_A" % (seed, depth)
 
 
 def have(stem):
@@ -209,7 +209,7 @@ def figure_d1(seed=0):
                Line2D([], [], color="#b8b8b8", lw=0.7, label="facts that never fail")]
     fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, 0.075), ncol=2,
                handletextpad=0.6, columnspacing=2.0, handlelength=1.8)
-    path = OUT / "diag_d1_staircase.png"
+    path = OUT / "diagnostic_d1_staircase.png"
     fig.savefig(path, bbox_inches="tight", dpi=200)
     plt.close(fig)
     return path
@@ -246,7 +246,7 @@ def figure_d345(seed=0):
                for n, c, l in ARMS]
     fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, 0.07), ncol=2,
                handletextpad=0.6, columnspacing=2.0, handlelength=1.8)
-    path = OUT / "diag_d34_decomposition.png"
+    path = OUT / "diagnostic_d34_decomposition.png"
     fig.savefig(path, bbox_inches="tight", dpi=200)
     plt.close(fig)
     return path
@@ -277,7 +277,7 @@ def figure_d5():
                 transform=ax.transAxes, ha="center", va="bottom", fontsize=9, color=DARK)
         panel(ax, "ab"[col], dx=-0.2, dy=1.12)
     axes[0].legend(frameon=False, fontsize=8, loc="lower left")
-    path = OUT / "diag_d5_worlds.png"
+    path = OUT / "diagnostic_d5_worlds.png"
     fig.savefig(path, bbox_inches="tight", dpi=200)
     plt.close(fig)
     return path

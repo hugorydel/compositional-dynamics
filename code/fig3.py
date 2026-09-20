@@ -1,26 +1,39 @@
 """Figure 3: one fact makes many cross-structure comparisons available.
 
-Two by three.  Columns are depths, sharing one logarithmic axis of epochs since
-the linking fact.  Nothing before the intervention is drawn.  Both arms leave
+Two by three.  Columns are depths sharing one linear axis of epochs since the
+linking fact.  Nothing before the intervention is drawn.  Both arms leave
 identical pre-switch weights; only one then receives the fact.
 
 Top row counts correct novel compositions: how many of the eighty withheld
 cross-structure comparisons a world answers correctly at each evaluation,
-averaged across worlds (`ADJUST`).  Every linked curve rises to the same
-ceiling of 80.  Without the link about 9 to 14 are answered correctly by
-chance, because an unresolved offset lands some queries on the right target;
-nothing is inferred, as the geometric error in the row below shows.  It
-depends only on the state at each evaluation, so both arms start at the same
-point.  At depth 3 the linked curve dips and recovers, and the prediction dips
-in the same worlds (tests/check_reversals.py).
+averaged across worlds.  Retrieval is scored against ALL EIGHTEEN entities,
+not against the nine in the destination structure, which is what makes the
+count a count of inferences.  With nine candidates an unresolved offset lands
+9.4, 12.6 and 13.1 of the eighty queries on the right target by luck at depths
+1, 2 and 3, a baseline that differs by depth and had to be subtracted away.
+Against the full pool the same networks answer 1.0, 0.2 and 0.4 of 80 at the
+intervention -- zero in 177, 198 and 198 of 200 worlds -- so nothing is
+subtracted, the axis counts correct answers, and the three depths share one
+true ceiling of 80.
 
-Bottom row is the distance from the predicted point to the entity it should
-have retrieved, in units of the median spacing between candidates in the same
-learned embedding.  No ground-truth alignment enters, which matters here: the
-unlinked world has one global offset of the copy that no fact fixes, so any
-measure taken against a chosen ground truth lets a control that is converging
-perfectly well appear to get worse, as the free coordinate settles at the
-minimum-norm point rather than at the chosen one.
+Those counts come from the replay pass (`analysis/controls.py`), which re-runs
+each stored cell from its own seed and presentation order, checks every
+held-out hit and geometric score against the published record before adding
+anything to it, and scores the same states against the wider pool.  The
+prediction is the same integration scored the same way
+(`analysis/controls_pred.py`); nothing is fitted to the network.
+
+Bottom row is the published geometric error, read from the records themselves:
+the distance from the predicted point to the entity it should have retrieved,
+in units of the median spacing between candidates in the same learned
+embedding.  That normalization uses the destination pool and is unchanged
+here.  No ground-truth alignment enters, which matters: the unlinked world has
+one global offset of the copy that no fact fixes, so any measure taken against
+a chosen ground truth lets a control that is converging perfectly well appear
+to get worse, as the free coordinate settles at the minimum-norm point rather
+than at the chosen one.
+
+  usage:  python fig3.py
 """
 
 import glob
@@ -31,9 +44,9 @@ import _paths  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 from _paths import RESULTS, figure
-from relspec.measure import resolved, instantaneous
 from style import DARK, panel
 
+SUB = "f3"             # the published run: records and controls, results/f3
 DEPTHS = (1, 2, 3)
 PRED = dict(color=DARK, lw=0.8, ls=(0, (2.2, 2.0)), zorder=6)
 ARMS = (("hold", "#c0392b", "No linking fact"),
@@ -44,120 +57,31 @@ BASE_RATE = 0.03       # the rate WINDOW is quoted in
 # run used.  WINDOW is quoted at BASE_RATE only so that one constant keeps the
 # same amount of learning in view whatever rate a record was produced at: the
 # mean dynamics depend on the product of rate and epochs, so at a tenth the
-# rate the same window is ten times the epochs.
+# rate the same window is ten times the epochs.  The published run is at 0.003,
+# so the panels span 30,000 epochs.
 #
 # The comparison figure in tests/fig_rates.py does rescale, because four rates
 # have to share one axis there and the prediction is a single curve on it.
 # That is the only place the transformation earns its keep, and even there the
 # axis says so.  A panel showing one rate should not: it would print epochs
 # nobody ran and invite a reader to reproduce it with the wrong budget.
-YLAB = {"top": "Compositional Accuracy\n(held-out)",
-        "bot": "Geometric Error"}
 
 
-MEASURE = "raw"        # behavioural row: "raw" (plain accuracy), "instant" or "stable"
-BAND = "sem"           # "sem", a (lo, hi) percentile pair, or None for min-max
-# What the shading is for decides which of these is right.  A spread band
-# answers "how much do worlds differ", and over twenty worlds min-to-max
-# answers it with two draws and widens as worlds are added.  A standard-error
-# band answers "how well is the plotted curve pinned down", which is the
-# question a curve drawn against a prediction raises, and it narrows as worlds
-# are added.  The spread is still worth quoting in the text; it does not belong
-# on a panel whose subject is agreement.
+MEASURE = "raw"        # behavioural row: plain accuracy, no chance correction
+# Plain accuracy is the honest measure once the candidate pool is the whole
+# world.  The chance corrections this constant used to select existed because
+# the nine-candidate baseline was large and depth-dependent; against eighteen
+# candidates it is not, so there is nothing to correct and no future to read.
+# Other modules still read this constant to know what is drawn
+# (tests/check_reversals.py).
 
 
-ADJUST = "count"       # "correct": correct of 80; "count": gained; "switch": vs switch mean; None: plain
-# "count", not "correct".  Before the link each depth answers a different
-# number of comparisons by luck (9.4, 12.6 and 13.1 of 80), because depth 1 has
-# not finished the unlinked world's slowest mode when the link arrives
-# (tests/check_prelink.py).  Subtracting each world's own count at the switch
-# starts every depth at zero without re-running anything.
-
-
-def from_switch(centre, band):
-    """Rescale a mean accuracy curve so that 0 is its value at the switch and
-    100 is perfect.
-
-    Applied to the across-world MEAN, not world by world.  A world already at
-    100% when the fact arrives leaves nothing to rescale and divides by zero,
-    and per-world zeros would put every world on its own scale before they are
-    averaged.  On the mean it is one linear map per curve, so the shape of the
-    curve and of its band are unchanged; only the numbers on the axis move.
-    """
-    m0 = float(centre[0])
-
-    def f(y):
-        return 100.0 * (np.asarray(y, float) - m0) / (100.0 - m0)
-
-    return f(centre), (None if band is None else (f(band[0]), f(band[1])))
-
-
-def gained(V, n_items, with_band):
-    """Net held-out inferences gained since the switch, per world, averaged.
-
-    `V` is each world's plain accuracy in per cent.  The count at each
-    evaluation minus the count at the switch is how many cross-structure
-    comparisons the network answers now that it did not when the link
-    arrived, net of any it has since lost.  Kept as a count rather than a
-    percentage, so the panel says how many inferences one fact produced.
-    Needs `MEASURE = "raw"`, since a count of items is only defined on plain
-    accuracy.
-    """
-    V = np.asarray(V, float)
-    G = (V - V[:, :1]) * n_items / 100.0
-    centre = G.mean(0)
-    if not with_band or len(G) < 2:
-        return centre, None
-    se = G.std(0, ddof=1) / np.sqrt(len(G))
-    return centre, (centre - se, centre + se)
-
-
-def top_label(n_items=None):
-    if ADJUST == "correct":
-        return "Correct Novel Compositions (of %d)" % n_items
-    if ADJUST == "count":
-        return "Novel Compositions"
-    return ("Compositional Accuracy\n(relative to switch)" if ADJUST == "switch"
-            else YLAB["top"])
-
-
-def spread(V, key):
-    """Lower and upper edges of the shading, in the space the axis uses.
-
-    The geometric row is logarithmic, so its centre is a geometric mean and its
-    error is taken on the logarithms before being mapped back.  Doing it in the
-    linear space would put the band off-centre on the drawn curve.  The
-    behavioural row is a bounded percentage and is clipped to its range.
-    """
-    n = len(V)
-    if n < 2:
-        return None
-    if BAND is None:
-        return V.min(0), V.max(0)
-    if BAND != "sem":
-        return (np.percentile(V, BAND[0], axis=0),
-                np.percentile(V, BAND[1], axis=0))
-    W = np.log(np.maximum(V, 1e-12)) if key == "geometric" else V
-    m, se = W.mean(0), W.std(0, ddof=1) / np.sqrt(n)
-    if key == "geometric":
-        return np.exp(m - se), np.exp(m + se)
-    return np.clip(m - se, 0.0, 100.0), np.clip(m + se, 0.0, 100.0)
-
-
-def summarise(V, key):
-    """Across-world centre for one series.
-
-    The geometric row is drawn on a logarithmic axis, where an arithmetic mean
-    is the wrong centre: it is carried by whichever world happens to have the
-    largest error, so a set of worlds that each sit a factor of two above the
-    prediction can average to a curve that sits well under a factor of two.
-    The geometric mean is the arithmetic mean of the logarithms, which is what
-    the axis shows, and it reproduces the typical world.  The behavioural row
-    is a percentage on a linear axis and is averaged as one.
-    """
-    if key == "geometric":
-        return np.exp(np.mean(np.log(np.maximum(V, 1e-12)), axis=0))
-    return np.mean(V, axis=0)
+ADJUST = "correct"     # correct of 80, not gained since the switch
+# "correct", not "count".  Subtracting each world's own count at the
+# intervention removed a depth-dependent luck baseline that the full candidate
+# pool has already removed (see the docstring), and it cost the panel its
+# ceiling: a curve of gains plateaus at 80 minus each world's lucky hits, so
+# the three depths ended at different heights for a reason no reader could see.
 
 
 def scale_of(rec):
@@ -267,19 +191,95 @@ def world_set(sub):
         (good if ok else bad).append(s)
     return good, bad, have
 
+def sem(V):
+    """Standard error of the mean across worlds."""
+    return V.std(axis=0, ddof=1) / np.sqrt(len(V))
 
-def main(sub="f3_lr0p003", out="fig3_integration.png"):
-    """`sub` is the results sub-directory, so a run at another step size can be
-    drawn with the same code into its own file.
 
-    The default is the published set.  The locked-rate directory it used to
-    point at is gone, and pointing a default at a directory that no longer
-    exists produces an empty figure rather than an error, which is the sort of
-    thing that survives to a draft.
+def band(ax, x, V, colour):
+    """Across-world mean of a count, shaded by its standard error.
+
+    The behavioural row is a count on a linear axis, so both are taken in the
+    space the axis shows.  The shading answers "how well is the plotted curve
+    pinned down", which is the question a curve drawn against a parameter-free
+    prediction raises, and it narrows as worlds are added.  The spread across
+    worlds is worth quoting in the text; it does not belong on a panel whose
+    subject is agreement.
     """
+    m, s = V.mean(axis=0), sem(V)
+    ax.plot(x, m, color=colour, lw=1.8, zorder=3)
+    ax.fill_between(x, m - s, m + s, color=colour, alpha=0.25, lw=0, zorder=2)
+
+
+def control(sub, stem, seed, depth):
+    """One cell of the replay pass, as a dictionary of arrays."""
+    path = os.path.join(RESULTS, sub, "%s_w%02d_d%d.npz" % (stem, seed, depth))
+    if not os.path.exists(path):
+        raise SystemExit("no control pass for world %d at depth %d (%s).\n"
+                         "Run:  python analysis/controls.py --cells f3:0-199:%d"
+                         % (seed, depth, path, depth))
+    with np.load(path) as z:
+        return {k: z[k] for k in z.files if not k.startswith("pre.")}
+
+
+def counts(sub, depth, seeds):
+    """Correct compositions of 80 against all eighteen candidates.
+
+    One row per world for the network and one for the prediction, each on its
+    own evaluation grid: the replay evaluates more often than the published run
+    did.  Within a depth every world shares a grid, which is checked here
+    rather than assumed, since a world on a different grid would be averaged
+    into the wrong epochs and nothing downstream would notice.
+    """
+    net, pred, grids = {}, {}, {}
+    for seed in seeds:
+        cells = (("net", control(sub, "controls", seed, depth)),
+                 ("pred", control(sub, "controls_pred", seed, depth)))
+        for name, z in cells:
+            if name not in grids:
+                grids[name] = z["epochs"]
+            elif not np.array_equal(grids[name], z["epochs"]):
+                raise SystemExit("world %d at depth %d is on a different %s grid"
+                                 % (seed, depth, name))
+        for arm, _, _ in ARMS:
+            net.setdefault(arm, []).append(cells[0][1]["%s.cross18" % arm].sum(axis=1))
+            pred.setdefault(arm, []).append(cells[1][1]["%s.pred18" % arm].sum(axis=1))
+    return (grids["net"], {k: np.array(v, float) for k, v in net.items()},
+            grids["pred"], {k: np.array(v, float) for k, v in pred.items()})
+
+
+def geometry(recs, arm, src):
+    """Every world's published geometric error, since the intervention."""
+    ser = [after(r, arm, src, "geometric") for r in recs]
+    return ser[0][0], np.array([v for _, v in ser])
+
+
+def log_band(ax, x, V, colour, style=None):
+    """A geometric row: centre and error taken on the logarithms.
+
+    On a logarithmic axis an arithmetic mean is the wrong centre -- it is
+    carried by whichever world happens to have the largest error, so a set of
+    worlds that each sit a factor of two above the prediction can average to a
+    curve that sits well under a factor of two -- and a linear error band sits
+    off-centre on the drawn curve.  With `style`, the prediction: one curve,
+    no band.
+    """
+    L = np.log10(np.maximum(V, 1e-12))
+    m, s = L.mean(axis=0), sem(L)
+    if style is not None:
+        ax.plot(x, 10.0 ** m, **style)
+        return
+    ax.plot(x, 10.0 ** m, color=colour, lw=1.8, zorder=3)
+    ax.fill_between(x, 10.0 ** (m - s), 10.0 ** (m + s), color=colour,
+                    alpha=0.25, lw=0, zorder=2)
+
+
+def main(sub=SUB, out="fig3_integration.png"):
+    """`sub` is the results sub-directory holding both the records and the
+    replay pass, so another run can be drawn with the same code into its own
+    file."""
     fig, axes = plt.subplots(2, 3, figsize=(9.8, 5.6))
     fig.subplots_adjust(wspace=0.14, hspace=0.44)
-    lrt = BASE_RATE
     seeds, dropped, have = world_set(sub)
     print("  %d worlds in every column%s%s"
           % (len(seeds),
@@ -287,106 +287,61 @@ def main(sub="f3_lr0p003", out="fig3_integration.png"):
              "" if len(seeds) == N_WORLDS or not seeds
              else "  -- SHORT of %d, extend the run" % N_WORLDS))
 
-    extent, n_items = [], None
     for col, depth in enumerate(DEPTHS):
-        files = [have[depth][s] for s in seeds]
-        if not files:
-            for row in (0, 1):
-                axes[row][col].set_visible(False)
-            continue
-        recs = [json.load(open(f)) for f in files]
-        lrt = recs[0]["lr_target"]
-        n_items = recs[0]["n_pairs"]
+        recs = [json.load(open(have[depth][s])) for s in seeds]
+        lrt, n_items = recs[0]["lr_target"], recs[0]["n_pairs"]
         xhi = WINDOW * scale_of(recs[0])
-        xt = ticks_for(xhi)
+        ep, net, pep, pred = counts(sub, depth, seeds)
 
-        for row, key, ylab in ((0, "resolved", top_label(recs[0]["n_pairs"])),
-                               (1, "geometric", YLAB["bot"])):
+        ax, m, pm = axes[0][col], ep <= xhi, pep <= xhi
+        for arm, colour, _ in ARMS:
+            band(ax, ep[m], net[arm][:, m], colour)
+            ax.plot(pep[pm], pred[arm].mean(axis=0)[pm], **PRED)
+        print("  N=%d  linked arm answers %.1f of %d at the end of the axis, "
+              "control %.1f"
+              % (depth, net["insert"][:, m][:, -1].mean(), n_items,
+                 net["hold"][:, m][:, -1].mean()))
+        ax.set_ylim(-0.04 * n_items, 1.06 * n_items)
+        ax.set_yticks(list(range(0, n_items + 1, 20)))
+        ax.text(0.5, 1.05, r"$N = %d$      $\eta_{\mathrm{target}} = %g$"
+                % (depth, lrt), transform=ax.transAxes, fontsize=9,
+                ha="center", va="bottom", color=DARK)
+        if col == 0:
+            ax.set_ylabel("Correct Novel Compositions\n(of %d, all 18 candidates)"
+                          % n_items, linespacing=1.6, fontsize=9)
+
+        ax = axes[1][col]
+        for arm, colour, _ in ARMS:
+            gep, V = geometry(recs, arm, "net")
+            g = gep <= xhi
+            log_band(ax, gep[g], V[:, g], colour)
+            pgep, P = geometry(recs, arm, "pred")
+            pg = pgep <= xhi
+            log_band(ax, pgep[pg], P[:, pg], colour, style=PRED)
+        ax.set_yscale("log")
+        # the same range in all three columns, 10 down to half a decade past
+        # 10^-2, which holds every curve drawn here.  No reference line:
+        # retrieval is 100% below about one candidate spacing and falls away
+        # above it (tests/check_readout.py), but where exactly to draw the line
+        # inside that transition is a choice, and a dashed rule invites a
+        # reader to treat the choice as a result.
+        ax.set_ylim(5e-3, 10)
+        ax.set_xlabel("Epochs since the linking fact")
+        if col == 0:
+            ax.set_ylabel("Geometric Error", linespacing=1.6)
+
+        for row in (0, 1):
             ax = axes[row][col]
-            for arm, c, _ in ARMS:
-                for src, kw in (("net", dict(color=c, lw=1.8, zorder=3)),
-                                ("pred", PRED)):
-                    ser = [after(r, arm, src, key) for r in recs]
-                    x = ser[0][0]
-                    V = np.array([v for _, v in ser])
-                    centre = summarise(V, key)
-                    band = spread(V, key) if (src == "net" and len(V) > 1) else None
-                    if key == "resolved" and ADJUST == "switch":
-                        centre, band = from_switch(centre, band)
-                    elif key == "resolved" and ADJUST == "correct":
-                        # plain accuracy as a count of comparisons out of all
-                        # of them, so every depth shares the same true ceiling
-                        assert MEASURE == "raw", "counts need plain accuracy"
-                        k = n_items / 100.0
-                        centre = centre * k
-                        band = None if band is None else (band[0] * k, band[1] * k)
-                        if src == "net":
-                            print("  N=%d  %-6s %4.1f -> %4.1f of %d"
-                                  % (depth, arm, centre[0], centre[-1], n_items))
-                    elif key == "resolved" and ADJUST == "count":
-                        assert MEASURE == "raw", "counts need plain accuracy"
-                        centre, band = gained(V, recs[0]["n_pairs"], src == "net")
-                        extent.append(centre)
-                        if arm == "insert" and src == "net":
-                            print("  N=%d  linked arm gains %.1f inferences by the "
-                                  "end of the axis" % (depth, centre[-1]))
-                    ax.plot(x, centre, **kw)
-                    if band is not None:
-                        ax.fill_between(x, band[0], band[1], color=c,
-                                        alpha=0.25, lw=0, zorder=2)
             ax.set_xlim(0, xhi)
-            ax.set_xticks(xt[0])
-            ax.set_xticklabels(xt[1])
-            if row == 0:
-                ax.set_ylim(-4, 106)
-                ax.set_yticks([0, 25, 50, 75, 100])
-                ax.text(0.5, 1.05, r"$N = %d$      $\eta_{\mathrm{target}} = %g$"
-                        % (depth, lrt), transform=ax.transAxes, fontsize=9,
-                        ha="center", va="bottom", color=DARK)
-            else:
-                ax.set_yscale("log")
-                # the same range in all three figures, 10 down to half a
-                # decade past 10^-2, which holds every curve drawn here.  No
-                # reference line: retrieval is 100%
-                # below about one candidate spacing and falls away above it
-                # (tests/check_readout.py), but where exactly to draw the line
-                # inside that transition is a choice, and a dashed rule invites
-                # a reader to treat the choice as a result.
-                ax.set_ylim(5e-3, 10)
-                ax.set_xlabel("Epochs since the linking fact")
+            ax.set_xticks(ticks_for(xhi)[0])
+            ax.set_xticklabels(ticks_for(xhi)[1])
             if col:
                 ax.set_yticklabels([])
-            else:
-                ax.set_ylabel(ylab, linespacing=1.6)
             panel(ax, "abcdef"[row * 3 + col],
-                  dx=-0.22 if col == 0 else -0.08, dy=1.16)
+                  dx=-0.24 if col == 0 else -0.08, dy=1.16)
 
-    if ADJUST == "correct" and n_items:
-        # one shared count axis, 0 to every comparison, the same at every depth
-        for col, ax in enumerate(axes[0]):
-            if not ax.get_visible():
-                continue
-            ax.set_ylim(-0.04 * n_items, 1.06 * n_items)
-            ax.set_yticks(list(range(0, n_items + 1, 20)))
-            if col:
-                ax.set_yticklabels([])
-    if ADJUST == "count" and extent:
-        # one shared axis for the three depths.  No guide line and no special
-        # top tick: the ceiling is 80 minus each world's lucky hits, 71 or 53,
-        # so the plateau of a mean curve is an average of two ceilings and
-        # differs by depth; a rule at any one value would read as a maximum
-        hi = max(float(np.max(e)) for e in extent)
-        lo = min(float(np.min(e)) for e in extent)
-        ticks = list(range(0, int(hi) + 1, 20))
-        for col, ax in enumerate(axes[0]):
-            if not ax.get_visible():
-                continue
-            ax.set_ylim(min(lo, 0.0) - 0.04 * hi, 1.06 * hi)
-            ax.set_yticks(ticks)
-            if col:
-                ax.set_yticklabels([])
-    for arm, c, lab in ARMS:
-        axes[0][0].plot([], [], color=c, lw=1.8, label=lab)
+    for _, colour, label in ARMS:
+        axes[0][0].plot([], [], color=colour, lw=1.8, label=label)
     # "Prediction" alone.  That it carries no fitted parameters is the whole
     # claim of the figure and needs a sentence, so it belongs in the caption; a
     # legend key can only assert it in passing.
@@ -400,6 +355,7 @@ def main(sub="f3_lr0p003", out="fig3_integration.png"):
                handletextpad=0.6, columnspacing=2.4, handlelength=1.8)
     p = figure(out)
     fig.savefig(p, bbox_inches="tight", dpi=300)
+    plt.close(fig)
     print("wrote %s" % p)
 
 

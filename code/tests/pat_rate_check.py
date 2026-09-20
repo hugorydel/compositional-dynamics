@@ -37,7 +37,7 @@ from relspec.config import DEFAULT, override  # noqa: E402
 from relspec.measure import law_plan  # noqa: E402
 from run_experiments import staged  # noqa: E402
 
-OUT = Path(RESULTS) / "_pat_stage1"
+OUT = Path(RESULTS) / "f2"
 BASE, RATE = 0.03, 0.003
 SEED, DEPTH, CLOSED = 0, 3, "A"
 
@@ -56,7 +56,7 @@ def run():
     lr = s0.lr(DEPTH, target=RATE, settings=S)
     extra = dict(closed=CLOSED, open="B" if CLOSED == "A" else "A", rate=RATE,
                  scale=scale, substeps=S.substeps(DEPTH))
-    stem = "f2_rate%s_w%02d_d%d_%s" % (("%g" % RATE).replace(".", "p"), SEED, DEPTH, CLOSED)
+    stem = "ratecheck_w%02d_d%d_%s" % (SEED, DEPTH, CLOSED)
     print("running %s: %s pre-intervention epochs, then 2 x %s, evaluated every %s"
           % (stem, "{:,}".format(t1), "{:,}".format(t2), "{:,}".format(every)), flush=True)
     t0 = time.time()
@@ -116,7 +116,7 @@ def draw(rows):
     ax.set_ylabel("Geometric error")
     ax.legend(frameon=False, fontsize=8, loc="lower left")
     panel(ax, "a", dx=-0.16, dy=1.06)
-    path = OUT / "diag_rate_check_f2_d3.png"
+    path = OUT / "diagnostic_ratecheck_d3.png"
     fig.savefig(path, bbox_inches="tight", dpi=200)
     plt.close(fig)
     print("wrote %s" % path)

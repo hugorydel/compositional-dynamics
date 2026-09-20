@@ -1,0 +1,112 @@
+{
+  "cell": "f3_w64_d3",
+  "seed": 64,
+  "depth": 3,
+  "closed": null,
+  "t_switch": 55000,
+  "window": 40000,
+  "n_evaluations": 294,
+  "original_evaluations": 161,
+  "n_premise": 24,
+  "n_facts": 32,
+  "grid": {
+    "dense": [
+      [
+        500,
+        10
+      ],
+      [
+        2000,
+        50
+      ]
+    ],
+    "tail": 1.05
+  },
+  "timing": {
+    "pre_seconds": 105.18818163871765,
+    "hold_seconds": 78.07794451713562,
+    "hold_checked": 161,
+    "hold_worst_geometry_delta": 0.0,
+    "insert_seconds": 79.58993482589722,
+    "insert_checked": 161,
+    "insert_worst_geometry_delta": 0.0
+  },
+  "pre_state": [
+    [
+      21,
+      16
+    ],
+    [
+      16,
+      16
+    ],
+    [
+      16,
+      16
+    ]
+  ],
+  "pre_rng": {
+    "bit_generator": "PCG64",
+    "state": {
+      "state": 250909001103768703891457730174150683238,
+      "inc": 261136684632268670825940853076396136793
+    },
+    "has_uint32": 1,
+    "uinteger": 4180972330
+  },
+  "bytes_npz": 154542,
+  "arms": {
+    "hold": {
+      "cross9": {
+        "start": 11.25,
+        "min": 11.25,
+        "end": 11.25,
+        "epoch_of_min": 0
+      },
+      "cross18": {
+        "start": 0.0,
+        "min": 0.0,
+        "end": 0.0,
+        "epoch_of_min": 0
+      },
+      "premise": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "facts": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      }
+    },
+    "insert": {
+      "cross9": {
+        "start": 11.25,
+        "min": 11.25,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "cross18": {
+        "start": 0.0,
+        "min": 0.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "premise": {
+        "start": 100.0,
+        "min": 87.5,
+        "end": 100.0,
+        "epoch_of_min": 10
+      },
+      "facts": {
+        "start": 100.0,
+        "min": 87.5,
+        "end": 100.0,
+        "epoch_of_min": 10
+      }
+    }
+  }
+}

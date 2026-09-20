@@ -1,6 +1,6 @@
 """Results, section 3: one linking fact unlocks many cross-structure inferences.
 
-Reads Figure 3's records (`results/f3_lr0p003`).  The claim is about how much
+Reads Figure 3's records (`results/f3`).  The claim is about how much
 one link unlocks.
 
 Main, for numbers the Results may quote:
@@ -36,7 +36,7 @@ from common import (AGREEMENT_HEADING, DEPTHS, DIAGNOSTIC_HEADING, N_WORLDS,
                     agreement_lines, at, commas, emit, first_reach, fmt_ci,
                     fmt_factor, fmt_fold, lg, med_iqr, timing_line)
 
-SUB = "f3_lr0p003"
+SUB = "f3"
 CONDS = ("insert", "hold")
 
 

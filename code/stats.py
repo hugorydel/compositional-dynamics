@@ -385,7 +385,7 @@ def figure3():
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests"))
     from check_clock import fit
 
-    seeds, dropped, have = fig3.world_set("f3_lr0p003")
+    seeds, dropped, have = fig3.world_set("f3")
     print("  %d worlds%s" % (len(seeds), "" if not dropped else ", dropped %s" % dropped))
     for d in DEPTHS:
         recs = [json.load(open(have[d][s])) for s in seeds]

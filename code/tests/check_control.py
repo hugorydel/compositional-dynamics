@@ -30,7 +30,7 @@ from _paths import RESULTS
 
 import fig3
 
-SUB = "f3_lr0p003"
+SUB = "f3"
 WORLDS = range(20)
 DEPTHS = (1, 2, 3)
 

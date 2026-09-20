@@ -57,7 +57,6 @@ from relspec.config import DEFAULT, override
 from relspec.measure import cross_plan
 from run_experiments import REQUIRED, ckpt_path, save, staged
 
-import fig3
 
 BASE = 0.03         # the rate the pre-switch phase runs at, and the time unit
 WINDOW = 4000       # rescaled epochs after the fact
@@ -164,9 +163,11 @@ def main():
         with Pool(nproc) as pool:
             for what, dt in pool.imap_unordered(one, todo):
                 print("  wrote %s  (%.0fs)" % (what, dt), flush=True)
-    for rate in rates:
-        fig3.main(sub=tag(rate),
-                  out="fig3_eta%s.png" % ("%g" % rate).replace(".", "p"))
+    print("records written; draw the rates together with tests/fig_rates.py")
+    # Figure 3 itself is no longer drawable from records alone: its
+    # behavioural row is scored against all eighteen candidates by the
+    # replay pass (analysis/controls.py), which exists for the published
+    # run only.  fig_rates.py reads what these records do store.
 
 
 if __name__ == "__main__":
