@@ -1,0 +1,89 @@
+{
+  "cell": "f3_lr0p003_w152_d1",
+  "seed": 152,
+  "depth": 1,
+  "closed": null,
+  "t_switch": 200000,
+  "window": 40000,
+  "n_evaluations": 158,
+  "original_evaluations": 17,
+  "n_premise": 24,
+  "n_facts": 32,
+  "grid": {
+    "dense": [
+      [
+        500,
+        10
+      ],
+      [
+        2000,
+        50
+      ]
+    ],
+    "tail": 1.05
+  },
+  "timing": {
+    "pre_seconds": 112.78234577178955,
+    "hold_seconds": 23.89014744758606,
+    "hold_checked": 17,
+    "hold_worst_geometry_delta": 0.0,
+    "insert_seconds": 24.33072328567505,
+    "insert_checked": 17,
+    "insert_worst_geometry_delta": 0.0
+  },
+  "bytes_npz": 79446,
+  "arms": {
+    "hold": {
+      "cross9": {
+        "start": 11.25,
+        "min": 11.25,
+        "end": 11.25,
+        "epoch_of_min": 0
+      },
+      "cross18": {
+        "start": 0.0,
+        "min": 0.0,
+        "end": 0.0,
+        "epoch_of_min": 0
+      },
+      "premise": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "facts": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      }
+    },
+    "insert": {
+      "cross9": {
+        "start": 11.25,
+        "min": 11.25,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "cross18": {
+        "start": 0.0,
+        "min": 0.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "premise": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "facts": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      }
+    }
+  }
+}

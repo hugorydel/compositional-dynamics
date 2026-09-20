@@ -1,0 +1,108 @@
+{
+  "cell": "f3_lr0p003_w95_d2",
+  "seed": 95,
+  "depth": 2,
+  "closed": null,
+  "t_switch": 65000,
+  "window": 40000,
+  "n_evaluations": 218,
+  "original_evaluations": 81,
+  "n_premise": 24,
+  "n_facts": 32,
+  "grid": {
+    "dense": [
+      [
+        500,
+        10
+      ],
+      [
+        2000,
+        50
+      ]
+    ],
+    "tail": 1.05
+  },
+  "timing": {
+    "pre_seconds": 69.46573734283447,
+    "hold_seconds": 44.20879125595093,
+    "hold_checked": 81,
+    "hold_worst_geometry_delta": 0.0,
+    "insert_seconds": 46.15552067756653,
+    "insert_checked": 81,
+    "insert_worst_geometry_delta": 0.0
+  },
+  "pre_state": [
+    [
+      21,
+      16
+    ],
+    [
+      16,
+      16
+    ]
+  ],
+  "pre_rng": {
+    "bit_generator": "PCG64",
+    "state": {
+      "state": 312397430996791907952886264262060366311,
+      "inc": 261136684632268670825940853076396136793
+    },
+    "has_uint32": 0,
+    "uinteger": 2269314443
+  },
+  "bytes_npz": 116239,
+  "arms": {
+    "hold": {
+      "cross9": {
+        "start": 11.25,
+        "min": 11.25,
+        "end": 11.25,
+        "epoch_of_min": 0
+      },
+      "cross18": {
+        "start": 0.0,
+        "min": 0.0,
+        "end": 0.0,
+        "epoch_of_min": 0
+      },
+      "premise": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "facts": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      }
+    },
+    "insert": {
+      "cross9": {
+        "start": 11.25,
+        "min": 11.25,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "cross18": {
+        "start": 0.0,
+        "min": 0.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "premise": {
+        "start": 100.0,
+        "min": 95.83333333333334,
+        "end": 100.0,
+        "epoch_of_min": 90
+      },
+      "facts": {
+        "start": 100.0,
+        "min": 96.875,
+        "end": 100.0,
+        "epoch_of_min": 90
+      }
+    }
+  }
+}
