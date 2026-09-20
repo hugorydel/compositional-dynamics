@@ -25,7 +25,7 @@ follows the behavioural one.
 
 t* is the figure's, applied identically to network and prediction: every
 held-out composite retrieved and the geometric error under `tau`, both holding
-for `hold` evaluations.  A law with no t* inside the 10,000-epoch budget is not
+for `hold` evaluations.  A law with no t* inside its depth's recorded budget is not
 given one.  Its median over worlds is still estimable when more than half the
 worlds observe a t*, since every unobserved one lies beyond the budget; a law
 short of that is counted, not placed in the range.
