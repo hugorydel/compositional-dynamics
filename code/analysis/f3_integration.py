@@ -1,11 +1,14 @@
 """Results, section 3: one linking fact unlocks many cross-structure inferences.
 
-Reads Figure 3's records (`results/f3`).  The claim is about how much
-one link unlocks.
+Reads the replay pass in `results/f3`, which is what Figure 3 draws:
+retrieval scored against all eighteen candidates, the paper's geometric error,
+and the prediction evaluated on the network's own grid.  The claim is about how
+much one link unlocks.
 
 Main, for numbers the Results may quote:
 
-  effect            comparisons correct, of 80, with and without the link at
+  effect            comparisons correct, of 80 against all eighteen
+                    candidates, with and without the link at
                     the end of the plotted window (30,000 epochs after the
                     fact), how many were already correct at the fact, epochs
                     until 72 of 80 are correct, and the decline in
@@ -41,6 +44,16 @@ CONDS = ("insert", "hold")
 
 
 def load():
+    """Figure 3's world set, scored exactly as Figure 3 scores it.
+
+    Counts are correct compositions of 80 against ALL EIGHTEEN candidates and
+    the geometric error is the paper's, both read from the replay pass rather
+    than from the records: the records hold only the nine-candidate scoring,
+    and only on the published grid.  The replay reproduces every record at the
+    epochs the two grids share and evaluates between them as well, and the
+    prediction is evaluated at every point of the network's grid (`shared`), so
+    the two are compared where both were measured and never interpolated.
+    """
     seeds, dropped, have = fig3.world_set(SUB)
     if len(seeds) != N_WORLDS:
         raise SystemExit("Figure 3 has %d worlds, not %d" % (len(seeds), N_WORLDS))
@@ -48,18 +61,23 @@ def load():
     for d in DEPTHS:
         cnt = {(c, s): [] for c in CONDS for s in ("net", "pred")}
         geo = {(c, s): [] for c in CONDS for s in ("net", "pred")}
-        ep = win = n_items = None
+        ep = None
         for seed in seeds:
-            r = json.load(open(have[d][seed]))
-            for c, s in cnt:
-                dd = r["arms"][c][s]
-                e = np.array(dd["epochs"], float) - r["t_switch"]
-                m = e >= 0
-                cnt[c, s].append(np.array(dd["hits"]["cross"], bool)[m].sum(axis=1).astype(float))
-                geo[c, s].append(np.array(dd["geometric"]["cross"], float)[m])
-                ep = e[m]
-            win, n_items = fig3.WINDOW * fig3.scale_of(r), r["n_pairs"]
-        data[d] = dict(ep=ep, win=win, n_items=n_items,
+            net = fig3.control(SUB, "controls", seed, d)
+            pred = fig3.control(SUB, "controls_pred", seed, d)
+            m = pred["shared"].astype(bool)
+            if ep is None:
+                ep = net["epochs"]
+            if not (np.array_equal(ep, net["epochs"])
+                    and np.array_equal(pred["epochs"][m], ep)):
+                raise SystemExit("world %d at depth %d is on a different grid" % (seed, d))
+            for c in CONDS:
+                cnt[c, "net"].append(net["%s.cross18" % c].sum(axis=1).astype(float))
+                cnt[c, "pred"].append(pred["%s.pred18" % c][m].sum(axis=1).astype(float))
+                geo[c, "net"].append(net["%s.geo9" % c].astype(float))
+                geo[c, "pred"].append(pred["%s.geo9" % c][m].astype(float))
+        r = json.load(open(have[d][seeds[0]]))
+        data[d] = dict(ep=ep, win=fig3.WINDOW * fig3.scale_of(r), n_items=r["n_pairs"],
                        cnt={k: np.array(v) for k, v in cnt.items()},
                        geo={k: np.array(v) for k, v in geo.items()})
     return data
@@ -117,13 +135,26 @@ def control(data):
                 for d in DEPTHS)]
 
 
+def _interval(data, d, src="net"):
+    """The grid interval each world's event fell in: the gap from the last
+    evaluation below the criterion to the one that met it, which is what bounds
+    the error in that time.  The replay grid is not uniform, so this is per
+    world, not one number for the depth."""
+    ep, out = data[d]["ep"], []
+    for v in data[d]["cnt"]["insert", src]:
+        k = np.flatnonzero(v >= _most(data))
+        out.append(np.nan if not len(k) else
+                   (float(ep[k[0]] - ep[k[0] - 1]) if k[0] else 0.0))
+    return np.array(out)
+
+
 def unlock_time(data):
     n_items = data[1]["n_items"]
     return (["**Prediction agreement for unlock time** (epochs from the fact until "
              "%d of %d are correct with the link, per world)" % (_most(data), n_items)]
             + ["- N=%d: %s" % (d, timing_line(_unlock(data, d, "net"),
                                               _unlock(data, d, "pred"),
-                                              data[d]["ep"][1] - data[d]["ep"][0],
+                                              _interval(data, d),
                                               "%d of %d become correct within the run"
                                               % (_most(data), n_items), "worlds"))
                for d in DEPTHS])

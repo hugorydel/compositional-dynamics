@@ -23,11 +23,13 @@ anything to it, and scores the same states against the wider pool.  The
 prediction is the same integration scored the same way
 (`analysis/controls_pred.py`); nothing is fitted to the network.
 
-Bottom row is the published geometric error, read from the records themselves:
-the distance from the predicted point to the entity it should have retrieved,
-in units of the median spacing between candidates in the same learned
-embedding.  That normalization uses the destination pool and is unchanged
-here.  No ground-truth alignment enters, which matters: the unlinked world has
+Bottom row is the geometric error the paper defines: the distance from the
+predicted point to the entity it should have retrieved, in units of the median
+nearest-neighbour spacing among the nine destination entities in the same
+learned embedding.  The two rows deliberately use different sets -- a query
+competes against all eighteen entities, the unit of distance is the local scale
+of the destination structure -- and that normalization is unchanged here; only
+its resolution is, since it too is read from the replay.  No ground-truth alignment enters, which matters: the unlinked world has
 one global offset of the copy that no fact fixes, so any measure taken against
 a chosen ground truth lets a control that is converging perfectly well appear
 to get worse, as the free coordinate settles at the minimum-norm point rather
@@ -222,36 +224,38 @@ def control(sub, stem, seed, depth):
         return {k: z[k] for k in z.files if not k.startswith("pre.")}
 
 
-def counts(sub, depth, seeds):
-    """Correct compositions of 80 against all eighteen candidates.
+def series(sub, depth, seeds):
+    """Everything the panels draw, for the network and for the prediction.
 
-    One row per world for the network and one for the prediction, each on its
-    own evaluation grid: the replay evaluates more often than the published run
-    did.  Within a depth every world shares a grid, which is checked here
-    rather than assumed, since a world on a different grid would be averaged
-    into the wrong epochs and nothing downstream would notice.
+    Correct compositions of 80 against all eighteen candidates, and the
+    geometric error the paper defines on the destination pool.  Both come from
+    the replay rather than from the stored records.  The replay reproduces each
+    record at every epoch the two grids share -- `analysis/controls.py` and
+    `analysis/controls_pred.py` fail the cell otherwise -- and evaluates
+    between them as well, which is what the geometric row needs: at depth 1 the
+    record's first post-intervention evaluation is at 2,500 epochs, so a curve
+    drawn from it crosses the one interval where it bends as a straight line.
+
+    The network and the prediction are on different grids, and each is shared
+    by every world at a depth, which is checked here rather than assumed: a
+    world on a different grid would be averaged into the wrong epochs and
+    nothing downstream would notice.
     """
-    net, pred, grids = {}, {}, {}
+    grids, cnt, geo = {}, {}, {}
     for seed in seeds:
-        cells = (("net", control(sub, "controls", seed, depth)),
-                 ("pred", control(sub, "controls_pred", seed, depth)))
-        for name, z in cells:
+        cells = (("net", control(sub, "controls", seed, depth), "cross18"),
+                 ("pred", control(sub, "controls_pred", seed, depth), "pred18"))
+        for name, z, key in cells:
             if name not in grids:
                 grids[name] = z["epochs"]
             elif not np.array_equal(grids[name], z["epochs"]):
                 raise SystemExit("world %d at depth %d is on a different %s grid"
                                  % (seed, depth, name))
-        for arm, _, _ in ARMS:
-            net.setdefault(arm, []).append(cells[0][1]["%s.cross18" % arm].sum(axis=1))
-            pred.setdefault(arm, []).append(cells[1][1]["%s.pred18" % arm].sum(axis=1))
-    return (grids["net"], {k: np.array(v, float) for k, v in net.items()},
-            grids["pred"], {k: np.array(v, float) for k, v in pred.items()})
-
-
-def geometry(recs, arm, src):
-    """Every world's published geometric error, since the intervention."""
-    ser = [after(r, arm, src, "geometric") for r in recs]
-    return ser[0][0], np.array([v for _, v in ser])
+            for arm, _, _ in ARMS:
+                cnt.setdefault((name, arm), []).append(z["%s.%s" % (arm, key)].sum(axis=1))
+                geo.setdefault((name, arm), []).append(z["%s.geo9" % arm])
+    return (grids, {k: np.array(v, float) for k, v in cnt.items()},
+            {k: np.array(v, float) for k, v in geo.items()})
 
 
 def log_band(ax, x, V, colour, style=None):
@@ -291,33 +295,31 @@ def main(sub=SUB, out="fig3_integration.png"):
         recs = [json.load(open(have[depth][s])) for s in seeds]
         lrt, n_items = recs[0]["lr_target"], recs[0]["n_pairs"]
         xhi = WINDOW * scale_of(recs[0])
-        ep, net, pep, pred = counts(sub, depth, seeds)
+        grids, cnt, geo = series(sub, depth, seeds)
+        m, pm = grids["net"] <= xhi, grids["pred"] <= xhi
 
-        ax, m, pm = axes[0][col], ep <= xhi, pep <= xhi
+        ax = axes[0][col]
         for arm, colour, _ in ARMS:
-            band(ax, ep[m], net[arm][:, m], colour)
-            ax.plot(pep[pm], pred[arm].mean(axis=0)[pm], **PRED)
+            band(ax, grids["net"][m], cnt[("net", arm)][:, m], colour)
+            ax.plot(grids["pred"][pm], cnt[("pred", arm)].mean(axis=0)[pm], **PRED)
         print("  N=%d  linked arm answers %.1f of %d at the end of the axis, "
               "control %.1f"
-              % (depth, net["insert"][:, m][:, -1].mean(), n_items,
-                 net["hold"][:, m][:, -1].mean()))
+              % (depth, cnt[("net", "insert")][:, m][:, -1].mean(), n_items,
+                 cnt[("net", "hold")][:, m][:, -1].mean()))
         ax.set_ylim(-0.04 * n_items, 1.06 * n_items)
         ax.set_yticks(list(range(0, n_items + 1, 20)))
         ax.text(0.5, 1.05, r"$N = %d$      $\eta_{\mathrm{target}} = %g$"
                 % (depth, lrt), transform=ax.transAxes, fontsize=9,
                 ha="center", va="bottom", color=DARK)
         if col == 0:
-            ax.set_ylabel("Correct Novel Compositions\n(of %d, all 18 candidates)"
+            ax.set_ylabel("Correct Novel Compositions\n(out of %d)"
                           % n_items, linespacing=1.6, fontsize=9)
 
         ax = axes[1][col]
         for arm, colour, _ in ARMS:
-            gep, V = geometry(recs, arm, "net")
-            g = gep <= xhi
-            log_band(ax, gep[g], V[:, g], colour)
-            pgep, P = geometry(recs, arm, "pred")
-            pg = pgep <= xhi
-            log_band(ax, pgep[pg], P[:, pg], colour, style=PRED)
+            log_band(ax, grids["net"][m], geo[("net", arm)][:, m], colour)
+            log_band(ax, grids["pred"][pm], geo[("pred", arm)][:, pm], colour,
+                     style=PRED)
         ax.set_yscale("log")
         # the same range in all three columns, 10 down to half a decade past
         # 10^-2, which holds every curve drawn here.  No reference line:

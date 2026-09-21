@@ -6,9 +6,12 @@ turns them into the two answers the revision needs.
   E1  retrieval against all 18 entities beside the nine destination entities:
       what the baseline becomes, whether the linked networks still resolve
       every comparison, and how much later they do it
-  E2  retrieval of the facts the network was trained on, while it reorganizes:
-      how often a transient loss happens, how many facts, how long, and
-      whether every world recovers
+E2, retention of the facts the network was trained on, moved to
+`analysis/retention.py`, where "facts lost" separates the distinct facts that
+fail at any point from the most that fail at once, and "time to recovery" runs
+to the evaluation at which retrieval is complete again rather than to the last
+failure.  Two scripts reporting the same quantity under different definitions
+is how the two got confused in the first place.
 
 Worlds are the unit throughout: each cell contributes one value, summarized
 across the 200 of them with a 95% t interval, as the manuscript does.
@@ -102,61 +105,24 @@ def e1(data):
                      "{:,.0f}".format(np.percentile(fin, 25)),
                      "{:,.0f}".format(np.percentile(fin, 75)), len(fin)))
     print()
-    hold18 = [stack(data[d][1], "hold", "cross18").max() for d in DEPTHS]
-    print("    no-link accuracy against all 18 candidates never exceeds %.1f%% at any depth,"
-          % max(hold18))
-    print("    any world, any evaluation")
+    worst, where = 0.0, None
+    for d in DEPTHS:
+        epochs, cells = data[d]
+        v = stack(cells, "hold", "cross18")
+        i, j = np.unravel_index(int(v.argmax()), v.shape)
+        if v[i, j] > worst:
+            worst, where = v[i, j], (d, sorted(cells)[i], epochs[j], v[i, -1])
+    print("    no-link accuracy against all 18 candidates peaks at %.1f%% of 80, in "
+          "world %d" % (worst, where[1]))
+    print("    at depth %d, at +%s epochs, falling to %.1f%% by the end: the two copies"
+          % (where[0], "{:,.0f}".format(where[2]), where[3]))
+    print("    happen to start nearly aligned there, and the unlinked world settles "
+          "away from it")
     print()
 
 
-def e2(data):
-    print("E2  retention of trained facts, Experiment 3, linked arm, 200 worlds per depth")
-    print("    %-6s %12s %12s %12s %16s %14s %12s"
-          % ("depth", "worlds hit", "facts lost", "lowest", "onset", "duration", "recovered"))
-    summary = {}
-    for depth in DEPTHS:
-        epochs, cells = data[depth]
-        prem = stack(cells, "insert", "premise")
-        n_items = cells[sorted(cells)[0]]["insert.premise"].shape[1]
-        dipped = prem.min(axis=1) < 100 - 1e-9
-        lost = np.round((100 - prem.min(axis=1)) / 100 * n_items).astype(int)
-        onset, dur = [], []
-        for row in prem[dipped]:
-            bad = epochs[row < 100 - 1e-9]
-            onset.append(bad.min())
-            dur.append(bad.max() - bad.min())
-        recovered = int((prem[dipped][:, -1] >= 100 - 1e-9).sum())
-        summary[depth] = dict(dipped=int(dipped.sum()), lost=lost[dipped],
-                              onset=np.array(onset), dur=np.array(dur),
-                              recovered=recovered, prem=prem, epochs=epochs)
-        print("    %-6d %8d/200 %12s %11.1f%% %16s %14s %9d/%d"
-              % (depth, int(dipped.sum()),
-                 "%d (max %d)" % (int(np.median(lost[dipped])), int(lost.max())) if dipped.any() else "-",
-                 prem.min(axis=1).min(),
-                 "{:,.0f}".format(np.median(onset)) if onset else "-",
-                 "{:,.0f}".format(np.median(dur)) if dur else "-",
-                 recovered, int(dipped.sum())))
-    print()
-    print("    %-6s %26s %28s" % ("depth", "all trained facts", "worlds that never dip"))
-    for depth in DEPTHS:
-        epochs, cells = data[depth]
-        facts = stack(cells, "insert", "facts")
-        prem = summary[depth]["prem"]
-        safe = prem.min(axis=1) >= 100 - 1e-9
-        worst = [cells[s]["insert.premise_norm"].max() for s in sorted(cells)]
-        worst = np.array(worst)[safe]
-        print("    %-6d %14d/200 hit, lowest %5.1f%% %18s"
-              % (depth, int((facts.min(axis=1) < 100 - 1e-9).sum()), facts.min(),
-                 "worst residual %.2f spacings" % worst.max() if len(worst) else "-"))
-    print()
-    hold = {d: stack(data[d][1], "hold", "premise") for d in DEPTHS}
-    print("    no-link arm: %s"
-          % "; ".join("N=%d lowest %.1f%%" % (d, hold[d].min()) for d in DEPTHS))
-    print()
-    return summary
-
-
-def figures(data, summary):
+def figures(data):
+    """The E1 diagnostic: both candidate pools, both arms, all three depths."""
     fig, axes = plt.subplots(1, 3, figsize=(9.8, 3.3))
     fig.subplots_adjust(wspace=0.16, bottom=0.34)
     for col, depth in enumerate(DEPTHS):
@@ -186,41 +152,7 @@ def figures(data, summary):
     fig.savefig(p1, bbox_inches="tight", dpi=200)
     plt.close(fig)
 
-    fig, axes = plt.subplots(2, 3, figsize=(9.8, 5.6))
-    fig.subplots_adjust(wspace=0.16, hspace=0.42, bottom=0.14)
-    for col, depth in enumerate(DEPTHS):
-        epochs, cells = data[depth]
-        m = epochs > 0
-        prem = summary[depth]["prem"]
-        ax = axes[0][col]
-        ax.plot(epochs[m], prem.mean(axis=0)[m], color="#1b6ca8", lw=1.8)
-        sem = prem.std(axis=0, ddof=1) / np.sqrt(len(prem))
-        ax.fill_between(epochs[m], (prem.mean(axis=0) - sem)[m],
-                        (prem.mean(axis=0) + sem)[m], color="#1b6ca8", alpha=0.25, lw=0)
-        ax.set_ylim(min(90.0, prem.mean(axis=0).min() - 1.0), 100.4)
-        ax.text(0.5, 1.05, "$N = %d$" % depth, transform=ax.transAxes, ha="center",
-                va="bottom", fontsize=9, color=DARK)
-        if col == 0:
-            ax.set_ylabel("Mean retention\nacross worlds (%)", linespacing=1.6, fontsize=9)
-        else:
-            ax.set_yticklabels([])
-        panel(ax, "abc"[col], dx=-0.24 if col == 0 else -0.08, dy=1.12)
-
-        ax = axes[1][col]
-        share = 100.0 * (prem < 100 - 1e-9).mean(axis=0)
-        ax.plot(epochs[m], share[m], color="#c0392b", lw=1.8)
-        ax.set_ylim(-2, max(12, share.max() * 1.2))
-        ax.set_xlabel("Epochs since the linking fact")
-        if col == 0:
-            ax.set_ylabel("Worlds with a fact\nunretrieved (%)", linespacing=1.6, fontsize=9)
-        panel(ax, "def"[col], dx=-0.24 if col == 0 else -0.08, dy=1.12)
-        for row in (0, 1):
-            axes[row][col].set_xscale("log")
-    p2 = OUT / "diagnostic_e2_retention.png"
-    fig.savefig(p2, bbox_inches="tight", dpi=200)
-    plt.close(fig)
-    for p in (p1, p2):
-        print("wrote %s" % p)
+    print("wrote %s" % p1)
 
 
 if __name__ == "__main__":
@@ -229,4 +161,4 @@ if __name__ == "__main__":
         if len(data[d][1]) != 200:
             print("warning: depth %d has %d worlds" % (d, len(data[d][1])))
     e1(data)
-    figures(data, e2(data))
+    figures(data)

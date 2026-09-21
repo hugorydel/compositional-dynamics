@@ -1,24 +1,52 @@
 {
-  "cell": "f2_w02_d1_A",
+  "cell": "controls_w02_d1_A",
   "seed": 2,
   "depth": 1,
   "closed": "A",
   "t_switch": 50000,
   "window": 40000,
-  "n_evaluations": 841,
+  "n_evaluations": 899,
   "original_evaluations": 801,
   "n_premise": 64,
   "n_facts": 72,
+  "grid": {
+    "dense": [
+      [
+        500,
+        10
+      ],
+      [
+        2000,
+        50
+      ]
+    ],
+    "tail": 1.05
+  },
   "timing": {
-    "pre_seconds": 31.630181312561035,
-    "hold_seconds": 26.517011165618896,
+    "pre_seconds": 87.13985419273376,
+    "hold_seconds": 75.31414794921875,
     "hold_checked": 1602,
     "hold_worst_geometry_delta": 0.0,
-    "insert_seconds": 26.922916173934937,
+    "insert_seconds": 70.75666856765747,
     "insert_checked": 1602,
     "insert_worst_geometry_delta": 0.0
   },
-  "bytes_npz": 865957,
+  "pre_state": [
+    [
+      110,
+      16
+    ]
+  ],
+  "pre_rng": {
+    "bit_generator": "PCG64",
+    "state": {
+      "state": 59657602120384396030291671923991557671,
+      "inc": 261136684632268670825940853076396136793
+    },
+    "has_uint32": 1,
+    "uinteger": 90284291
+  },
+  "bytes_npz": 937254,
   "arms": {
     "hold": {
       "premise": {

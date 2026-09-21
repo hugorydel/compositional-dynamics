@@ -1,0 +1,80 @@
+{
+  "cell": "controls_w29_d1_A",
+  "seed": 29,
+  "depth": 1,
+  "closed": "A",
+  "t_switch": 50000,
+  "window": 40000,
+  "n_evaluations": 899,
+  "original_evaluations": 801,
+  "n_premise": 64,
+  "n_facts": 72,
+  "grid": {
+    "dense": [
+      [
+        500,
+        10
+      ],
+      [
+        2000,
+        50
+      ]
+    ],
+    "tail": 1.05
+  },
+  "timing": {
+    "pre_seconds": 84.54386043548584,
+    "hold_seconds": 71.28299021720886,
+    "hold_checked": 1602,
+    "hold_worst_geometry_delta": 0.0,
+    "insert_seconds": 71.85448336601257,
+    "insert_checked": 1602,
+    "insert_worst_geometry_delta": 0.0
+  },
+  "pre_state": [
+    [
+      110,
+      16
+    ]
+  ],
+  "pre_rng": {
+    "bit_generator": "PCG64",
+    "state": {
+      "state": 59657602120384396030291671923991557671,
+      "inc": 261136684632268670825940853076396136793
+    },
+    "has_uint32": 1,
+    "uinteger": 90284291
+  },
+  "bytes_npz": 932676,
+  "arms": {
+    "hold": {
+      "premise": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "facts": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      }
+    },
+    "insert": {
+      "premise": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      },
+      "facts": {
+        "start": 100.0,
+        "min": 100.0,
+        "end": 100.0,
+        "epoch_of_min": 0
+      }
+    }
+  }
+}

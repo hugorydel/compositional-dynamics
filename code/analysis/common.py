@@ -210,9 +210,11 @@ def timing_line(tn, tp, step, event, unit):
 
     First whether network and prediction agree that the event happens at all;
     then, where both say it does, the R² of log10 time and the absolute error
-    in epochs, with the share within one evaluation, the resolution the records
-    allow.  A time of zero (the event already holds at the fact) has no
-    logarithm and is left out of the R² only.
+    in epochs, with the share within one evaluation, the resolution the grid
+    allows.  `step` may be one interval, or one per unit when the grid is not
+    uniform, in which case each event is tested against the interval it fell
+    in.  A time of zero (the event already holds at the fact) has no logarithm
+    and is left out of the R² only.
     """
     tn, tp = np.asarray(tn, float), np.asarray(tp, float)
     fn, fp = np.isfinite(tn), np.isfinite(tp)
@@ -220,16 +222,23 @@ def timing_line(tn, tp, step, event, unit):
     pos = both & (tn > 0) & (tp > 0)
     err = np.abs(tn[both] - tp[both])
     zero = int(both.sum() - pos.sum())
+    step = np.asarray(step, float)
+    if step.ndim:
+        # a non-uniform grid resolves each event differently, so the test is
+        # against the interval that event actually fell in
+        window, how = step[both], ("within its own crossing interval "
+                                   "(median %s epochs)" % commas(np.median(step[both])))
+    else:
+        window, how = step, "within one evaluation (%s epochs)" % commas(step)
     return ("network and prediction agree on whether %s in %s of %s %s (both %s, "
             "neither %s). Where both do: R² of log10 epochs = %.4f%s; absolute "
-            "error median %s epochs, 95th percentile %s; within one evaluation "
-            "(%s epochs) in %.1f%%"
+            "error median %s epochs, 95th percentile %s; %s in %.1f%%"
             % (event, commas((fn == fp).sum()), commas(tn.size), unit,
                commas(both.sum()), commas((~fn & ~fp).sum()),
                agreement_r2(np.log10(tn[pos]), np.log10(tp[pos])),
                "" if not zero else " (%d already there at the fact left out)" % zero,
-               commas(np.median(err)), commas(np.percentile(err, 95)), commas(step),
-               100.0 * np.mean(err <= step)))
+               commas(np.median(err)), commas(np.percentile(err, 95)), how,
+               100.0 * np.mean(err <= window)))
 
 
 def err_by_depth(per_depth, unit="", log=False):

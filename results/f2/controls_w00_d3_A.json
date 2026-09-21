@@ -1,24 +1,60 @@
 {
-  "cell": "f2_w00_d3_A",
+  "cell": "controls_w00_d3_A",
   "seed": 0,
   "depth": 3,
   "closed": "A",
   "t_switch": 3500,
   "window": 4000,
-  "n_evaluations": 401,
+  "n_evaluations": 412,
   "original_evaluations": 401,
   "n_premise": 64,
   "n_facts": 72,
+  "grid": {
+    "dense": [
+      [
+        500,
+        10
+      ],
+      [
+        2000,
+        50
+      ]
+    ],
+    "tail": 1.05
+  },
   "timing": {
-    "pre_seconds": 8.939050436019897,
-    "hold_seconds": 11.004429340362549,
+    "pre_seconds": 29.934053897857666,
+    "hold_seconds": 34.04130458831787,
     "hold_checked": 802,
     "hold_worst_geometry_delta": 0.0,
-    "insert_seconds": 10.765625,
+    "insert_seconds": 36.95738482475281,
     "insert_checked": 802,
     "insert_worst_geometry_delta": 0.0
   },
-  "bytes_npz": 446172,
+  "pre_state": [
+    [
+      110,
+      16
+    ],
+    [
+      16,
+      16
+    ],
+    [
+      16,
+      16
+    ]
+  ],
+  "pre_rng": {
+    "bit_generator": "PCG64",
+    "state": {
+      "state": 136926730849562691488450982046214125141,
+      "inc": 261136684632268670825940853076396136793
+    },
+    "has_uint32": 1,
+    "uinteger": 496230565
+  },
+  "bytes_npz": 476322,
   "arms": {
     "hold": {
       "premise": {
