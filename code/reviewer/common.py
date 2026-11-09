@@ -72,3 +72,17 @@ def write_outputs(name, title, question, report_lines, summary, cells, source):
     print("\n".join(report_lines))
     print("wrote %s" % d)
     return d
+
+
+def cell_dir(name):
+    """`results/reviewer_outputs/<name>/cells/`: per-cell raw arrays, for an
+    analysis that runs one job per world and depth and resumes from them."""
+    d = os.path.join(out_dir(name), "cells")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def first_at_least(epochs, counts, threshold):
+    """First evaluation epoch with `counts >= threshold`, or NaN if never."""
+    idx = np.flatnonzero(np.asarray(counts) >= threshold)
+    return float(epochs[idx[0]]) if idx.size else float("nan")

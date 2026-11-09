@@ -7,6 +7,13 @@ answers.
   r2_q4_construction   Reviewer 2, Q4: Exp. 2 tokens, null space and rho
   r2_q4_selection      Reviewer 2, Q4: non-identifiability vs optimizer selection
   r2_q2_variance       Reviewer 2, Q2: between-law vs within-law agreement
+  r2_q3_rehearsal      Reviewer 2, Q3/W5: integration under reduced rehearsal (new runs)
+  r2_q5_partial        Reviewer 2, Q5/W4: partial resolution with two null directions (new runs)
+
+The two new-run analyses keep one file per world and depth in
+`<name>/cells/` and skip cells that exist, so with the cells present this
+script only re-summarizes them. Without them it reruns every cell on one
+process (hours); run those scripts directly with --nproc instead.
 
   usage:  python run_reviewer.py                    all
           python run_reviewer.py r2_q2_variance     a subset
@@ -20,13 +27,17 @@ import _boot  # noqa: F401
 from common import OUT_ROOT
 
 import r2_q2_variance
+import r2_q3_rehearsal
 import r2_q4_construction
 import r2_q4_selection
+import r2_q5_partial
 
 ANALYSES = {
     "r2_q4_construction": (r2_q4_construction, "Reviewer 2, Q4: Exp. 2 tokens, null space and rho"),
     "r2_q4_selection": (r2_q4_selection, "Reviewer 2, Q4: non-identifiability vs optimizer selection"),
     "r2_q2_variance": (r2_q2_variance, "Reviewer 2, Q2: between-law vs within-law agreement"),
+    "r2_q3_rehearsal": (r2_q3_rehearsal, "Reviewer 2, Q3/W5: integration under reduced rehearsal"),
+    "r2_q5_partial": (r2_q5_partial, "Reviewer 2, Q5/W4: partial resolution with two null directions"),
 }
 
 
