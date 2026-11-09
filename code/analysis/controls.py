@@ -9,9 +9,8 @@ need the training run back:
   E2  score the original premise facts, and every original fact, while the
       network reorganizes after the intervention
 
-The pilot in `review/pat_controls.py` answered these for single cells by saving
-every embedding: 10.9 MB for one Experiment 2 cell, about 13 GB over the full
-sample.  This scores both controls DURING the replay and keeps only per-item
+An earlier pilot answered these for single cells by saving every embedding:
+10.9 MB for one Experiment 2 cell, about 13 GB over the full sample.  This scores both controls DURING the replay and keeps only per-item
 hits, which is what would make the full run affordable.  It also samples early
 post-intervention epochs densely, since a transient dip between the original
 evaluations is exactly what E2 is looking for.

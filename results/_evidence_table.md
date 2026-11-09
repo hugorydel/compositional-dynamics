@@ -28,9 +28,9 @@ Both figures are drawn over the first 30,000 epochs after the linking fact, the 
 
 ## Figure 3
 
-**Top row.** Correct novel compositions: of the 80 withheld cross-structure comparisons, how many the network answers correctly, scored against ALL EIGHTEEN entities (the nine in the destination structure and the nine in the source).  A comparison counts when the queried point's nearest neighbour among the eighteen is the right entity.  Mean across worlds, shaded by the standard error across worlds.
+**Panels.** Correct novel compositions: of the 80 withheld cross-structure comparisons, how many the network answers correctly, scored against ALL EIGHTEEN entities (the nine in the destination structure and the nine in the source).  A comparison counts when the queried point's nearest neighbour among the eighteen is the right entity.  Mean across worlds, shaded by the standard error across worlds.
 
-**Bottom row.** Geometric error: the distance from the queried point to the entity it should retrieve, in units of the median NEAREST-NEIGHBOUR spacing among the nine destination entities in the same learned embedding.  Retrieval and this normalization use different sets on purpose: a query competes against all eighteen entities, while the unit of distance is the local scale of the destination structure.  Geometric mean across worlds, error taken on the logarithms.
+**Geometric error, now the third row of Figure S3.** The distance from the queried point to the entity it should retrieve, in units of the median NEAREST-NEIGHBOUR spacing among the nine destination entities in the same learned embedding.  Retrieval and this normalization use different sets on purpose: a query competes against all eighteen entities, while the unit of distance is the local scale of the destination structure.  Geometric mean across worlds, error taken on the logarithms.
 
 | depth | at the fact, linked | at 30,000, linked | at 30,000, no link | worlds answering all 80 at 30,000 | geometric error, fact to 30,000 |
 | --- | --- | --- | --- | --- | --- |

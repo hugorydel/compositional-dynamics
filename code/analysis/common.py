@@ -229,7 +229,9 @@ def timing_line(tn, tp, step, event, unit):
         window, how = step[both], ("within its own crossing interval "
                                    "(median %s epochs)" % commas(np.median(step[both])))
     else:
-        window, how = step, "within one evaluation (%s epochs)" % commas(step)
+        # a 0-d array is still an array; the formatting below needs a number
+        window = float(step)
+        how = "within one evaluation (%s epochs)" % commas(window)
     return ("network and prediction agree on whether %s in %s of %s %s (both %s, "
             "neither %s). Where both do: R² of log10 epochs = %.4f%s; absolute "
             "error median %s epochs, 95th percentile %s; %s in %.1f%%"

@@ -1,7 +1,9 @@
 """Figure 2: one bridging fact makes an already-experienced composite learnable.
 
-Two by three.  Columns are depths, sharing one logarithmic axis of epochs since
-the bridge.  Nothing before the intervention is drawn; the pre-switch phase
+One by three.  Columns are depths, sharing one axis of epochs since the bridge.
+The panels show held-out accuracy; the geometric error is drawn by the same
+code, `row`, as the second row of the appendix figure (figS3.py).  Nothing
+before the intervention is drawn; the pre-switch phase
 established that the premises and the composite were experienced, and that
 belongs in the caption rather than in negative x.
 
@@ -16,13 +18,14 @@ The two counterbalance arms are averaged, because they are the same condition
 with the block labels swapped.  Whether the effect follows the placement rather
 than the label is a separate check and belongs in a supplementary panel.
 
-The behavioural row is held-out accuracy over all fifteen composites, shown
-relative to the switch: 0 is the mean accuracy across worlds when the bridge
-arrives and 100 is perfect (`ADJUST`).  Plain accuracy is not zero there,
-because before the bridge the undetermined composite passes through a region
-where some worlds already retrieve every target, and the theory predicts the
-same arms (tests/check_degenerate.py).  Rescaling the mean rather than each
-world means nothing has to be excluded to do it.
+The behavioural row is plain held-out accuracy over all fifteen composites, the
+same numbers the Results text quotes (`ADJUST = None`).  It is not zero at the
+bridge, because before the bridge the undetermined composite passes through a
+region where some worlds already retrieve every target, and the theory
+predicts the same arms (tests/check_degenerate.py).  An earlier version drew
+it relative to the switch, 0 being the mean accuracy when the bridge arrives
+(`ADJUST = "switch"`); that put the no-link arm at zero on an axis labelled
+accuracy, while the text reported its raw 10.9%, so it was dropped.
 """
 
 import glob
@@ -112,7 +115,7 @@ BAND = "sem"           # "sem", a (lo, hi) percentile pair, or None for min-max
 # at depth 2, 30 to 80 at depth 3, tenth to ninetieth percentile.
 
 
-ADJUST = "switch"      # "switch": top row relative to the mean at the switch; None: plain
+ADJUST = None          # "switch": top row relative to the mean at the switch; None: plain
 
 
 def from_switch(centre, band):
@@ -256,10 +259,26 @@ def main(exclude=None, out="fig2_identifiability.png"):
     undetermined composite that the theory itself predicts
     (tests/check_degenerate.py).
     """
+    fig, axes = plt.subplots(1, 3, figsize=(9.8, 3.0))
+    fig.subplots_adjust(wspace=0.14, bottom=0.24)
+    row(axes, "resolved", exclude)
+    h, l = handles(axes[0])
+    # one column per entry, so they sit on a single line whatever the count
+    fig.legend(h, l, loc="upper center", bbox_to_anchor=(0.5, 0.075),
+               ncol=len(l), handletextpad=0.6, columnspacing=2.4,
+               handlelength=1.8)
+    p = figure(out)
+    fig.savefig(p, bbox_inches="tight", dpi=300)
+    plt.close(fig)
+    print("wrote %s" % p)
+
+
+def row(axes, key, exclude=None, letters="abc"):
+    """Three depth panels of one measure: "resolved" (held-out accuracy) or
+    "geometric".  Figure 2 draws the first; figS3.py draws the second with this
+    same function, on the same worlds."""
     if exclude is None:
         exclude = MEASURE == "stable"
-    fig, axes = plt.subplots(2, 3, figsize=(9.8, 5.6))
-    fig.subplots_adjust(wspace=0.14, hspace=0.44)
     seeds, dropped, arms = world_set(keep_all=not exclude)
     print("  %d worlds in every column%s%s"
           % (len(seeds),
@@ -279,69 +298,63 @@ def main(exclude=None, out="fig2_identifiability.png"):
         print("  N=%d  %d worlds, %d of %d arms scorable"
               % (depth, nw, kept, len(recs)))
 
-        for row, key, ylab in ((0, "resolved", top_label()),
-                               (1, "geometric", YLAB["bot"])):
-            ax = axes[row][col]
-            for arm, c, _ in ARMS:
-                for src, kw in (("net", dict(color=c, lw=1.8, zorder=3)),
-                                ("pred", PRED)):
-                    ep = after(recs[0], arm, src, key, recs[0]["open"],
-                               restrict=exclude)[0]
-                    W = np.array([
-                        summarise(np.array([after(r, arm, src, key, r["open"],
-                                                  restrict=exclude)[1]
-                                            for r in rs]), key)
-                        for rs in worlds_.values()])
-                    centre = summarise(W, key)
-                    band = spread(W, key) if src == "net" else None
-                    if key == "resolved" and ADJUST == "switch":
-                        centre, band = from_switch(centre, band)
-                    ax.plot(ep, centre, **kw)
-                    if band is not None:
-                        ax.fill_between(ep, band[0], band[1], color=c,
-                                        alpha=0.25, lw=0, zorder=2)
-            ax.set_xlim(*XLIM)
-            ax.set_xticks(XTICKS[0])
-            ax.set_xticklabels(XTICKS[1])
-            if row == 0:
-                ax.set_ylim(-4, 106)
-                ax.set_yticks([0, 25, 50, 75, 100])
-                ax.text(0.5, 1.05, r"$N = %d$      $\eta_{\mathrm{target}} = %g$"
-                        % (depth, lrt), transform=ax.transAxes, fontsize=9,
-                        ha="center", va="bottom", color=DARK)
-            else:
-                ax.set_yscale("log")
-                # No reference line.  Retrieval is reliable well below one
-                # candidate spacing and falls away above it, but where inside
-                # that transition to draw a rule is a choice, and a dashed line
-                # invites a reader to treat the choice as a result.
-                ax.set_ylim(5e-3, 10)
-                ax.set_xlabel("Epochs since the linking fact")
-            if col:
-                ax.set_yticklabels([])
-            else:
-                ax.set_ylabel(ylab, linespacing=1.6)
-            panel(ax, "abcdef"[row * 3 + col],
-                  dx=-0.22 if col == 0 else -0.08, dy=1.16)
+        ax = axes[col]
+        for arm, c, _ in ARMS:
+            for src, kw in (("net", dict(color=c, lw=1.8, zorder=3)),
+                            ("pred", PRED)):
+                ep = after(recs[0], arm, src, key, recs[0]["open"],
+                           restrict=exclude)[0]
+                W = np.array([
+                    summarise(np.array([after(r, arm, src, key, r["open"],
+                                              restrict=exclude)[1]
+                                        for r in rs]), key)
+                    for rs in worlds_.values()])
+                centre = summarise(W, key)
+                band = spread(W, key) if src == "net" else None
+                if key == "resolved" and ADJUST == "switch":
+                    centre, band = from_switch(centre, band)
+                ax.plot(ep, centre, **kw)
+                if band is not None:
+                    ax.fill_between(ep, band[0], band[1], color=c,
+                                    alpha=0.25, lw=0, zorder=2)
+        ax.set_xlim(*XLIM)
+        ax.set_xticks(XTICKS[0])
+        ax.set_xticklabels(XTICKS[1])
+        ax.set_xlabel("Epochs since the linking fact")
+        if key == "resolved":
+            ax.set_ylim(-4, 106)
+            ax.set_yticks([0, 25, 50, 75, 100])
+        else:
+            ax.set_yscale("log")
+            # No reference line.  Retrieval is reliable well below one
+            # candidate spacing and falls away above it, but where inside
+            # that transition to draw a rule is a choice, and a dashed line
+            # invites a reader to treat the choice as a result.
+            ax.set_ylim(5e-3, 10)
+        ax.text(0.5, 1.05, r"$N = %d$      $\eta_{\mathrm{target}} = %g$"
+                % (depth, lrt), transform=ax.transAxes, fontsize=9,
+                ha="center", va="bottom", color=DARK)
+        if col:
+            ax.set_yticklabels([])
+        else:
+            ax.set_ylabel(top_label() if key == "resolved" else YLAB["bot"],
+                          linespacing=1.6)
+        panel(ax, letters[col], dx=-0.22 if col == 0 else -0.08, dy=1.16)
 
+
+def handles(ax):
+    """Legend entries: the two arms, then the prediction."""
     for arm, c, lab in ARMS:
-        axes[0][0].plot([], [], color=c, lw=1.8, label=lab)
+        ax.plot([], [], color=c, lw=1.8, label=lab)
     # "Prediction" alone.  That it carries no fitted parameters is the whole
     # claim of the figure and needs a sentence, so it belongs in the caption; a
     # legend key can only assert it in passing.
-    axes[0][0].plot([], [], label="Prediction", **PRED)
+    ax.plot([], [], label="Prediction", **PRED)
     # The shading carries no legend entry.  What a band means -- which
     # statistic, over how many worlds, computed on which scale -- is a sentence,
     # and a sentence belongs in the caption, where a reader looks for it.  A
     # key can only name it, and naming it badly is worse than leaving it out.
-    h, l = axes[0][0].get_legend_handles_labels()
-    # one column per entry, so they sit on a single line whatever the count
-    fig.legend(h, l, loc="upper center", bbox_to_anchor=(0.5, 0.01),
-               ncol=len(l), handletextpad=0.6, columnspacing=2.4,
-               handlelength=1.8)
-    p = figure(out)
-    fig.savefig(p, bbox_inches="tight", dpi=300)
-    print("wrote %s" % p)
+    return ax.get_legend_handles_labels()
 
 
 if __name__ == "__main__":

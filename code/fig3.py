@@ -1,10 +1,12 @@
 """Figure 3: one fact makes many cross-structure comparisons available.
 
-Two by three.  Columns are depths sharing one linear axis of epochs since the
+One by three.  Columns are depths sharing one linear axis of epochs since the
 linking fact.  Nothing before the intervention is drawn.  Both arms leave
-identical pre-switch weights; only one then receives the fact.
+identical pre-switch weights; only one then receives the fact.  The geometric
+error is drawn by the same code, `row`, as the third row of the appendix
+figure (figS3.py).
 
-Top row counts correct novel compositions: how many of the eighty withheld
+The panels count correct novel compositions: how many of the eighty withheld
 cross-structure comparisons a world answers correctly at each evaluation,
 averaged across worlds.  Retrieval is scored against ALL EIGHTEEN entities,
 not against the nine in the destination structure, which is what makes the
@@ -23,7 +25,7 @@ anything to it, and scores the same states against the wider pool.  The
 prediction is the same integration scored the same way
 (`analysis/controls_pred.py`); nothing is fitted to the network.
 
-Bottom row is the geometric error the paper defines: the distance from the
+The geometric row (figS3.py) is the error the paper defines: the distance from the
 predicted point to the entity it should have retrieved, in units of the median
 nearest-neighbour spacing among the nine destination entities in the same
 learned embedding.  The two rows deliberately use different sets -- a query
@@ -282,8 +284,22 @@ def main(sub=SUB, out="fig3_integration.png"):
     """`sub` is the results sub-directory holding both the records and the
     replay pass, so another run can be drawn with the same code into its own
     file."""
-    fig, axes = plt.subplots(2, 3, figsize=(9.8, 5.6))
-    fig.subplots_adjust(wspace=0.14, hspace=0.44)
+    fig, axes = plt.subplots(1, 3, figsize=(9.8, 3.0))
+    fig.subplots_adjust(wspace=0.14, bottom=0.24)
+    row(axes, "counts", sub)
+    h, l = handles(axes[0])
+    fig.legend(h, l, loc="upper center", bbox_to_anchor=(0.5, 0.075), ncol=3,
+               handletextpad=0.6, columnspacing=2.4, handlelength=1.8)
+    p = figure(out)
+    fig.savefig(p, bbox_inches="tight", dpi=300)
+    plt.close(fig)
+    print("wrote %s" % p)
+
+
+def row(axes, kind, sub=SUB, letters="abc"):
+    """Three depth panels of one measure: "counts" (correct novel compositions)
+    or "geometric".  Figure 3 draws the first; figS3.py draws the second with
+    this same function, on the same worlds and replay files."""
     seeds, dropped, have = world_set(sub)
     print("  %d worlds in every column%s%s"
           % (len(seeds),
@@ -298,67 +314,61 @@ def main(sub=SUB, out="fig3_integration.png"):
         grids, cnt, geo = series(sub, depth, seeds)
         m, pm = grids["net"] <= xhi, grids["pred"] <= xhi
 
-        ax = axes[0][col]
-        for arm, colour, _ in ARMS:
-            band(ax, grids["net"][m], cnt[("net", arm)][:, m], colour)
-            ax.plot(grids["pred"][pm], cnt[("pred", arm)].mean(axis=0)[pm], **PRED)
-        print("  N=%d  linked arm answers %.1f of %d at the end of the axis, "
-              "control %.1f"
-              % (depth, cnt[("net", "insert")][:, m][:, -1].mean(), n_items,
-                 cnt[("net", "hold")][:, m][:, -1].mean()))
-        ax.set_ylim(-0.04 * n_items, 1.06 * n_items)
-        ax.set_yticks(list(range(0, n_items + 1, 20)))
+        ax = axes[col]
+        if kind == "counts":
+            for arm, colour, _ in ARMS:
+                band(ax, grids["net"][m], cnt[("net", arm)][:, m], colour)
+                ax.plot(grids["pred"][pm], cnt[("pred", arm)].mean(axis=0)[pm],
+                        **PRED)
+            print("  N=%d  linked arm answers %.1f of %d at the end of the axis, "
+                  "control %.1f"
+                  % (depth, cnt[("net", "insert")][:, m][:, -1].mean(), n_items,
+                     cnt[("net", "hold")][:, m][:, -1].mean()))
+            ax.set_ylim(-0.04 * n_items, 1.06 * n_items)
+            ax.set_yticks(list(range(0, n_items + 1, 20)))
+            if col == 0:
+                ax.set_ylabel("Correct Novel Compositions\n(out of %d)"
+                              % n_items, linespacing=1.6, fontsize=9)
+        else:
+            for arm, colour, _ in ARMS:
+                log_band(ax, grids["net"][m], geo[("net", arm)][:, m], colour)
+                log_band(ax, grids["pred"][pm], geo[("pred", arm)][:, pm], colour,
+                         style=PRED)
+            ax.set_yscale("log")
+            # the same range in all three columns, 10 down to half a decade past
+            # 10^-2, which holds every curve drawn here.  No reference line:
+            # retrieval is 100% below about one candidate spacing and falls away
+            # above it (tests/check_readout.py), but where exactly to draw the
+            # line inside that transition is a choice, and a dashed rule invites
+            # a reader to treat the choice as a result.
+            ax.set_ylim(5e-3, 10)
+            if col == 0:
+                ax.set_ylabel("Geometric Error", linespacing=1.6)
         ax.text(0.5, 1.05, r"$N = %d$      $\eta_{\mathrm{target}} = %g$"
                 % (depth, lrt), transform=ax.transAxes, fontsize=9,
                 ha="center", va="bottom", color=DARK)
-        if col == 0:
-            ax.set_ylabel("Correct Novel Compositions\n(out of %d)"
-                          % n_items, linespacing=1.6, fontsize=9)
-
-        ax = axes[1][col]
-        for arm, colour, _ in ARMS:
-            log_band(ax, grids["net"][m], geo[("net", arm)][:, m], colour)
-            log_band(ax, grids["pred"][pm], geo[("pred", arm)][:, pm], colour,
-                     style=PRED)
-        ax.set_yscale("log")
-        # the same range in all three columns, 10 down to half a decade past
-        # 10^-2, which holds every curve drawn here.  No reference line:
-        # retrieval is 100% below about one candidate spacing and falls away
-        # above it (tests/check_readout.py), but where exactly to draw the line
-        # inside that transition is a choice, and a dashed rule invites a
-        # reader to treat the choice as a result.
-        ax.set_ylim(5e-3, 10)
         ax.set_xlabel("Epochs since the linking fact")
-        if col == 0:
-            ax.set_ylabel("Geometric Error", linespacing=1.6)
+        ax.set_xlim(0, xhi)
+        ax.set_xticks(ticks_for(xhi)[0])
+        ax.set_xticklabels(ticks_for(xhi)[1])
+        if col:
+            ax.set_yticklabels([])
+        panel(ax, letters[col], dx=-0.24 if col == 0 else -0.08, dy=1.16)
 
-        for row in (0, 1):
-            ax = axes[row][col]
-            ax.set_xlim(0, xhi)
-            ax.set_xticks(ticks_for(xhi)[0])
-            ax.set_xticklabels(ticks_for(xhi)[1])
-            if col:
-                ax.set_yticklabels([])
-            panel(ax, "abcdef"[row * 3 + col],
-                  dx=-0.24 if col == 0 else -0.08, dy=1.16)
 
+def handles(ax):
+    """Legend entries: the two arms, then the prediction."""
     for _, colour, label in ARMS:
-        axes[0][0].plot([], [], color=colour, lw=1.8, label=label)
+        ax.plot([], [], color=colour, lw=1.8, label=label)
     # "Prediction" alone.  That it carries no fitted parameters is the whole
     # claim of the figure and needs a sentence, so it belongs in the caption; a
     # legend key can only assert it in passing.
-    axes[0][0].plot([], [], label="Prediction", **PRED)
+    ax.plot([], [], label="Prediction", **PRED)
     # The shading carries no legend entry.  What a band means -- which
     # statistic, over how many worlds, computed on which scale -- is a sentence,
     # and a sentence belongs in the caption, where a reader looks for it.  A
     # key can only name it, and naming it badly is worse than leaving it out.
-    h, l = axes[0][0].get_legend_handles_labels()
-    fig.legend(h, l, loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=3,
-               handletextpad=0.6, columnspacing=2.4, handlelength=1.8)
-    p = figure(out)
-    fig.savefig(p, bbox_inches="tight", dpi=300)
-    plt.close(fig)
-    print("wrote %s" % p)
+    return ax.get_legend_handles_labels()
 
 
 if __name__ == "__main__":

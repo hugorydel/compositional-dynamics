@@ -1,9 +1,10 @@
 """Figure 1: compositional abstraction emerges at a time specific to each law.
 
-Two by three.  Columns are depths, sharing one logarithmic epoch axis so the
-acceleration with depth is visible rather than hidden by per-column scaling.
-Top row is the behavioural measure, bottom row the geometric one, with the
-parameter-free prediction overlaid on every curve.
+One by three.  Columns are depths, sharing one epoch axis so the acceleration
+with depth is visible rather than hidden by per-column scaling.  The panels
+show the behavioural measure, with the parameter-free prediction overlaid on
+every curve.  The geometric measure is drawn by the same code, `row`, as the
+first row of the appendix figure (figS3.py).
 
 The behavioural measure is plain held-out accuracy: the percentage of a law's
 held-out composites answered correctly AT each evaluation, with no chance
@@ -154,12 +155,12 @@ def draw(ax, ep, V, key, band=True, **kw):
                         lw=0, zorder=2)
 
 
-def main(worlds=None, out="fig1_emergence.png", laws=None, band=True):
-    fig, axes = plt.subplots(2, 3, figsize=(9.8, 5.6))
-    fig.subplots_adjust(wspace=0.14, hspace=0.44)
-    cols = LAW_COLOURS
+def row(axes, key, worlds=None, laws=None, band=True, letters="abc"):
+    """Three depth panels of one measure: "resolved" (held-out accuracy) or
+    "geometric".  Figure 1 draws the first; figS3.py draws the second with this
+    same function, so the two can never disagree about worlds or laws.
+    Returns the number of worlds drawn."""
     nw = 0
-
     for col, depth in enumerate(DEPTHS):
         files = cells(depth, worlds)
         nw = max(nw, len(files))
@@ -168,54 +169,62 @@ def main(worlds=None, out="fig1_emergence.png", laws=None, band=True):
         recs = [json.load(open(f)) for f in files]
         ep = np.array(recs[0]["net"]["epochs"], float)
         lrt = recs[0]["lr_target"]
-        pick = laws or LAWS
+        ax = axes[col]
+        for k, law in enumerate(laws or LAWS):
+            draw(ax, ep, stack(recs, "net", key, law, ep), key,
+                 band=band, color=LAW_COLOURS[k], lw=1.7, zorder=3)
+            draw(ax, ep, stack(recs, "pred", key, law, ep), key,
+                 band=False, **PRED)
+        ax.set_xlim(*XLIM)
+        ax.set_xticks(XTICKS[0])
+        ax.set_xticklabels(XTICKS[1])
+        ax.set_xlabel("Training epoch")
+        if key == "resolved":
+            ax.set_ylim(-4, 106)
+            ax.set_yticks([0, 25, 50, 75, 100])
+        else:
+            ax.set_yscale("log")
+            # No reference line.  Retrieval is reliable well below one
+            # candidate spacing and falls away above it, but where inside
+            # that transition to draw a rule is a choice, and a dashed line
+            # invites a reader to treat the choice as a result.
+            ax.set_ylim(5e-3, 10)
+        ax.text(0.5, 1.05, r"$N = %d$      $\eta_{\mathrm{target}} = %g$"
+                % (depth, lrt), transform=ax.transAxes, fontsize=9,
+                ha="center", va="bottom", color=DARK)
+        if col:
+            ax.set_yticklabels([])
+        else:
+            ax.set_ylabel(YLAB["top" if key == "resolved" else "bot"],
+                          linespacing=1.6)
+        panel(ax, letters[col], dx=-0.22 if col == 0 else -0.08, dy=1.16)
+    return nw
 
-        for row, key, ylab in ((0, "resolved", YLAB["top"]),
-                               (1, "geometric", YLAB["bot"])):
-            ax = axes[row][col]
-            for k, law in enumerate(pick):
-                draw(ax, ep, stack(recs, "net", key, law, ep), key,
-                     band=band, color=cols[k], lw=1.7, zorder=3)
-                draw(ax, ep, stack(recs, "pred", key, law, ep), key,
-                     band=False, **PRED)
-            ax.set_xlim(*XLIM)
-            ax.set_xticks(XTICKS[0])
-            ax.set_xticklabels(XTICKS[1])
-            if row == 0:
-                ax.set_ylim(-4, 106)
-                ax.set_yticks([0, 25, 50, 75, 100])
-                ax.text(0.5, 1.05, r"$N = %d$      $\eta_{\mathrm{target}} = %g$"
-                        % (depth, lrt), transform=ax.transAxes, fontsize=9,
-                        ha="center", va="bottom", color=DARK)
-            else:
-                ax.set_yscale("log")
-                # No reference line.  Retrieval is reliable well below one
-                # candidate spacing and falls away above it, but where inside
-                # that transition to draw a rule is a choice, and a dashed line
-                # invites a reader to treat the choice as a result.
-                ax.set_ylim(5e-3, 10)
-                ax.set_xlabel("Training epoch")
-            if col:
-                ax.set_yticklabels([])
-            else:
-                ax.set_ylabel(ylab, linespacing=1.6)
-            panel(ax, "abcdef"[row * 3 + col],
-                  dx=-0.22 if col == 0 else -0.08, dy=1.16)
 
+def handles(ax, laws=None):
+    """Legend entries: one per drawn law, then the prediction."""
     for k, nm in enumerate("ABC"[:len(laws or LAWS)]):
-        axes[0][0].plot([], [], color=cols[k], lw=1.7, label="Law %s" % nm)
+        ax.plot([], [], color=LAW_COLOURS[k], lw=1.7, label="Law %s" % nm)
     # "Prediction" alone.  That it carries no fitted parameters is the whole
     # claim of the figure and needs a sentence, so it belongs in the caption; a
     # legend key can only assert it in passing.
-    axes[0][0].plot([], [], label="Prediction", **PRED)
-    h, l = axes[0][0].get_legend_handles_labels()
+    ax.plot([], [], label="Prediction", **PRED)
+    return ax.get_legend_handles_labels()
+
+
+def main(worlds=None, out="fig1_emergence.png", laws=None, band=True):
+    fig, axes = plt.subplots(1, 3, figsize=(9.8, 3.0))
+    fig.subplots_adjust(wspace=0.14, bottom=0.24)
+    nw = row(axes, "resolved", worlds, laws, band)
+    h, l = handles(axes[0], laws)
     # one column per entry, so the four sit on a single line.  With ncol=3 and
     # four entries matplotlib fills column-major and wraps Law B underneath.
-    fig.legend(h, l, loc="upper center", bbox_to_anchor=(0.5, 0.035),
+    fig.legend(h, l, loc="upper center", bbox_to_anchor=(0.5, 0.075),
                ncol=len(l), handletextpad=0.6, columnspacing=1.6,
                handlelength=1.8)
     p = figure(out)
     fig.savefig(p, bbox_inches="tight", dpi=300)
+    plt.close(fig)
     print("wrote %s  (%d world%s)" % (p, nw, "" if nw == 1 else "s"))
 
 

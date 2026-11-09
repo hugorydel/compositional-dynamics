@@ -70,7 +70,9 @@ def main(from_summary=False):
         ax.scatter(obs.ravel(), pred.ravel(), s=9, color='#1b6ca8', alpha=.22,
                    edgecolors='none', rasterized=True, zorder=2)
         ax.set(xscale='log', yscale='log', xlim=(lo, hi), ylim=(lo, hi),
-               xlabel='Observed epoch', title=f'Depth {depth} · n = 3,200')
+               # parentheses, not a centre dot: the dot read as a multiplication
+               # sign beside the sample size (reviewer issue F2)
+               xlabel='Observed epoch', title=f'Depth {depth} (n = 3,200)')
         if col == 0:
             ax.set_ylabel('Predicted epoch')
         ax.xaxis.set_major_formatter(fmt)

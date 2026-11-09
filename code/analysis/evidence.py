@@ -122,7 +122,7 @@ def figure3(data, seeds):
     n = data[1]["n_items"]
     NINE = nine_candidate_baseline()
     out = ["## Figure 3", "",
-           "**Top row.** Correct novel compositions: of the %d withheld "
+           "**Panels.** Correct novel compositions: of the %d withheld "
            "cross-structure comparisons, how many the network answers correctly, "
            "scored against ALL EIGHTEEN entities (the nine in the destination "
            "structure and the nine in the source).  A comparison counts when the "
@@ -130,7 +130,7 @@ def figure3(data, seeds):
            "entity.  Mean across worlds, shaded by the standard error across "
            "worlds." % n,
            "",
-           "**Bottom row.** Geometric error: the distance from the queried point to "
+           "**Geometric error, now the third row of Figure S3.** The distance from the queried point to "
            "the entity it should retrieve, in units of the median NEAREST-NEIGHBOUR "
            "spacing among the nine destination entities in the same learned "
            "embedding.  Retrieval and this normalization use different sets on "
