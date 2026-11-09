@@ -1,0 +1,55 @@
+{
+  "analysis": "r2_q4_selection",
+  "question": "Q4, 'Please clarify whether \"failure to settle the law\" denotes true non-identifiability or optimizer selection bias.'",
+  "source": "`results/f2/controls_w*_d*_[AB].npz` (pre-intervention weights, hold/insert arms)",
+  "summary": {
+    "N1": {
+      "n_cells": 60,
+      "epochs_after": 40000,
+      "open_law_error_rel_median": 0.7545007808747997,
+      "open_law_error_rel_min": 0.6175548141417502,
+      "open_law_error_rel_max": 0.9266841688539147,
+      "free_part_init_rel_median": 0.0031744410380602317,
+      "free_part_drift_rel_median": 1.8285954728328367e-14,
+      "free_part_drift_rel_max": 3.918097942870372e-14,
+      "nolink_acc_start_mean": 0.06333333333333332,
+      "nolink_acc_end_mean": 0.02222222222222222,
+      "linked_acc_end_mean": 1.0,
+      "nolink_geo_change_geomean": 0.17767714811098778,
+      "nolink_geo_change_maxabs": 0.27806009131017473,
+      "loss_at_intervention_median": 0.010547928366443646
+    },
+    "N2": {
+      "n_cells": 60,
+      "epochs_after": 8000,
+      "open_law_error_rel_median": 1.0020701776053236,
+      "open_law_error_rel_min": 0.8226094714085248,
+      "open_law_error_rel_max": 1.169028068996432,
+      "free_part_init_rel_median": 0.0031121999083894257,
+      "free_part_drift_rel_median": 0.05263105224676709,
+      "free_part_drift_rel_max": 0.11287459163070829,
+      "nolink_acc_start_mean": 0.014444444444444446,
+      "nolink_acc_end_mean": 0.012222222222222221,
+      "linked_acc_end_mean": 1.0,
+      "nolink_geo_change_geomean": 0.05283291235694909,
+      "nolink_geo_change_maxabs": 0.1851977422321105,
+      "loss_at_intervention_median": 0.0009131520020966497
+    },
+    "N3": {
+      "n_cells": 60,
+      "epochs_after": 4000,
+      "open_law_error_rel_median": 1.027679628193756,
+      "open_law_error_rel_min": 0.701145120773905,
+      "open_law_error_rel_max": 1.1916207758899244,
+      "free_part_init_rel_median": 0.0005888227166782362,
+      "free_part_drift_rel_median": 0.07649705150001582,
+      "free_part_drift_rel_max": 0.20733602788432018,
+      "nolink_acc_start_mean": 0.013333333333333334,
+      "nolink_acc_end_mean": 0.012222222222222221,
+      "linked_acc_end_mean": 1.0,
+      "nolink_geo_change_geomean": -0.010392266563304497,
+      "nolink_geo_change_maxabs": 0.16610004459291883,
+      "loss_at_intervention_median": 0.1000478928668847
+    }
+  }
+}

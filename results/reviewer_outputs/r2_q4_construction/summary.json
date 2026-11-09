@@ -1,0 +1,28 @@
+{
+  "analysis": "r2_q4_construction",
+  "question": "Q4, 'Do the two separate blocks use disjoint relation tokens (yielding rho = 1/sqrt(15))?'",
+  "source": "rebuilt worlds (`relspec.worlds.identifiability_world`)",
+  "summary": {
+    "n_cells": 60,
+    "seeds": [
+      0,
+      29
+    ],
+    "all_disjoint": true,
+    "null_dim": [
+      1
+    ],
+    "max_A_v_norm": 0.0,
+    "rho_open_min": 0.258198889747161,
+    "rho_open_max": 0.25819888974716115,
+    "one_over_sqrt15": 0.2581988897471611,
+    "rho_closed_max": 9.560239726824907e-16,
+    "max_loss_Estar": 2.660451328282934e-27,
+    "max_loss_Estar_plus_vu": 2.660429047895837e-27,
+    "all_shift_equals_minus_u": true,
+    "null_dim_after_link": [
+      0
+    ],
+    "rho_open_after_link_max": 1.5306141617968893e-15
+  }
+}
